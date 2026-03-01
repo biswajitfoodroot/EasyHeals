@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
     BarChart3, Users, LayoutGrid, MessageSquare,
     Settings, LogOut, UserCog, Building2, FileText,
-    Archive, ClipboardList, TrendingUp, Menu, X,
-    Plus, MoreHorizontal, Briefcase, Search, CheckCircle
+    Archive, Menu, X,
+    Briefcase, Search, CheckCircle, TrendingUp
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';

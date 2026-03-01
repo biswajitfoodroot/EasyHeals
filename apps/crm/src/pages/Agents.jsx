@@ -4,7 +4,7 @@ import api from '../lib/api';
 import Modal from '../components/ui/Modal';
 import PhoneLink from '../components/ui/PhoneLink';
 import { COUNTRY_CODES } from '../lib/constants';
-import { Plus, Search, Edit3, Trash2, Briefcase, X, Phone, KeyRound } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, Briefcase, X, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Agents() {
