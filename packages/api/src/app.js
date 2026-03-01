@@ -69,11 +69,25 @@ app.use('/v1/agent-portal', agentPortalRoutes);
 
 // Health check
 app.get('/v1/health', async (req, res) => {
-    const { dbReady } = await import('./db/index.js');
+    const { db, dbReady } = await import('./db/index.js');
+    const { users } = await import('./db/schema.js');
+    let userCount = null;
+    let dbError = null;
+    if (dbReady) {
+        try {
+            const result = await db.select().from(users).limit(1);
+            userCount = result.length;
+        } catch (e) {
+            dbError = e.message;
+        }
+    }
+    const dbUrl = process.env.TURSO_DATABASE_URL;
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        db: dbReady ? 'connected' : 'NOT CONFIGURED - missing TURSO_DATABASE_URL',
+        db: dbReady ? 'configured' : 'NOT CONFIGURED',
+        db_host: dbUrl ? dbUrl.replace(/^libsql:\/\//, '').split('/')[0] : 'not set',
+        db_query_test: dbError ? `FAILED: ${dbError}` : `ok (${userCount} user rows visible)`,
         node_env: process.env.NODE_ENV || 'not set',
     });
 });
