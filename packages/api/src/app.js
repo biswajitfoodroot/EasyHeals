@@ -68,8 +68,14 @@ app.use('/v1/users', userRoutes);
 app.use('/v1/agent-portal', agentPortalRoutes);
 
 // Health check
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/v1/health', async (req, res) => {
+    const { dbReady } = await import('./db/index.js');
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        db: dbReady ? 'connected' : 'NOT CONFIGURED - missing TURSO_DATABASE_URL',
+        node_env: process.env.NODE_ENV || 'not set',
+    });
 });
 
 // Error handling

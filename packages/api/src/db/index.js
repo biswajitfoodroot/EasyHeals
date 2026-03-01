@@ -12,9 +12,17 @@ if (process.env.NODE_ENV !== 'production') {
     dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 }
 
+const TURSO_DATABASE_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+
+if (!TURSO_DATABASE_URL) {
+    console.error('[DB] FATAL: TURSO_DATABASE_URL environment variable is not set.');
+}
+
 const client = createClient({
-    url: process.env.TURSO_DATABASE_URL,
-    authToken: process.env.TURSO_AUTH_TOKEN,
+    url: TURSO_DATABASE_URL || 'file:local.db', // fallback prevents crash on missing env
+    authToken: TURSO_AUTH_TOKEN,
 });
 
 export const db = drizzle(client, { schema });
+export const dbReady = !!TURSO_DATABASE_URL;

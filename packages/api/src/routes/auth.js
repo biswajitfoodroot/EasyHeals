@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db } from '../db/index.js';
+import { db, dbReady } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { logger } from '../app.js';
@@ -12,6 +12,10 @@ const router = express.Router();
 // POST /auth/login
 router.post('/login', async (req, res) => {
     try {
+        if (!dbReady) {
+            return res.status(503).json({ error: 'Database not configured. Please set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in environment variables.' });
+        }
+
         const { email, password } = req.body;
 
         if (!email || !password) {
@@ -52,8 +56,8 @@ router.post('/login', async (req, res) => {
             }
         });
     } catch (error) {
-        logger.error('Login Error:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        logger.error('Login Error:', error.message || error);
+        res.status(500).json({ error: error.message || 'Internal Server Error' });
     }
 });
 
