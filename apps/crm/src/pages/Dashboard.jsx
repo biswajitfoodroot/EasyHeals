@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
-import { LEAD_STATUSES, getStatusConfig } from '../lib/constants';
+import { LEAD_STATUSES, PIPELINE_STATUSES, getStatusConfig } from '../lib/constants';
 import { formatCurrency } from '../lib/utils';
 import useAuth from '../hooks/useAuth';
 import {
@@ -23,11 +23,12 @@ export default function Dashboard() {
         queryFn: () => api.get('/leads', { params: { page: 1, limit: 5 } }).then(r => r.data),
     });
 
+    const today = new Date().toISOString().split('T')[0];
     const statCards = [
-        { label: 'Total Leads', value: stats?.totalLeads || 0, icon: Users, color: 'bg-blue-500', bgColor: 'bg-blue-50' },
-        { label: 'Today\'s Leads', value: stats?.todayLeads || 0, icon: UserPlus, color: 'bg-green-500', bgColor: 'bg-green-50' },
-        { label: 'Follow-ups Due', value: stats?.followUpsDue || 0, icon: AlertTriangle, color: 'bg-amber-500', bgColor: 'bg-amber-50' },
-        { label: 'Converted', value: stats?.byStatus?.converted || 0, icon: TrendingUp, color: 'bg-teal', bgColor: 'bg-teal-pale' },
+        { label: 'Total Leads', value: stats?.totalLeads || 0, icon: Users, color: 'bg-blue-500', bgColor: 'bg-blue-50', link: '/leads' },
+        { label: 'Today\'s Leads', value: stats?.todayLeads || 0, icon: UserPlus, color: 'bg-green-500', bgColor: 'bg-green-50', link: `/leads?dateFrom=${today}` },
+        { label: 'Follow-ups Due', value: stats?.followUpsDue || 0, icon: AlertTriangle, color: 'bg-amber-500', bgColor: 'bg-amber-50', link: '/leads?followUpDue=true' },
+        { label: 'Service Taken', value: stats?.byStatus?.service_taken || 0, icon: TrendingUp, color: 'bg-teal', bgColor: 'bg-teal-pale', link: '/leads?status=service_taken' },
     ];
 
     return (
@@ -41,9 +42,9 @@ export default function Dashboard() {
             {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 {statCards.map((card) => (
-                    <div key={card.label} className="card p-4 sm:p-5 hover:shadow-md transition-shadow">
+                    <Link key={card.label} to={card.link} className="card p-4 sm:p-5 hover:shadow-md transition-shadow group block no-underline text-inherit">
                         <div className="flex items-center justify-between mb-3">
-                            <div className={`w-10 h-10 rounded-xl ${card.bgColor} flex items-center justify-center`}>
+                            <div className={`w-10 h-10 rounded-xl ${card.bgColor} flex items-center justify-center group-hover:scale-110 transition-transform`}>
                                 <card.icon size={18} className={card.color.replace('bg-', 'text-')} />
                             </div>
                         </div>
@@ -51,7 +52,7 @@ export default function Dashboard() {
                             {isLoading ? <div className="skeleton h-8 w-16" /> : card.value}
                         </div>
                         <div className="text-xs font-medium text-muted">{card.label}</div>
-                    </div>
+                    </Link>
                 ))}
             </div>
 
@@ -63,7 +64,7 @@ export default function Dashboard() {
                 </div>
                 <div className="card-body">
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                        {LEAD_STATUSES.filter(s => !['junk', 'lost'].includes(s.value)).map(status => (
+                        {LEAD_STATUSES.filter(s => PIPELINE_STATUSES.includes(s.value)).map(status => (
                             <Link key={status.value} to={`/leads?status=${status.value}`}
                                 className="p-3 rounded-xl border border-border hover:shadow-sm transition-shadow text-center group">
                                 <div className={`w-3 h-3 rounded-full ${status.dotClass} mx-auto mb-2`} />

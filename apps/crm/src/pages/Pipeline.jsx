@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
-import { LEAD_STATUSES } from '../lib/constants';
+import { LEAD_STATUSES, PIPELINE_STATUSES } from '../lib/constants';
 import StatusBadge from '../components/ui/StatusBadge';
 import { timeAgo, formatCurrency, truncate } from '../lib/utils';
 import PhoneLink from '../components/ui/PhoneLink';
@@ -13,8 +13,8 @@ export default function Pipeline() {
         queryFn: () => api.get('/leads/stats').then(r => r.data),
     });
 
-    // Fetch leads per status group
-    const statusGroups = LEAD_STATUSES.filter(s => !['junk', 'lost'].includes(s.value));
+    // Only show active pipeline statuses (valid → visited)
+    const statusGroups = LEAD_STATUSES.filter(s => PIPELINE_STATUSES.includes(s.value));
 
     return (
         <div className="page-container pb-24 lg:pb-8">

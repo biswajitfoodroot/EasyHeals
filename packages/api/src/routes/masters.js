@@ -60,8 +60,9 @@ router.post('/hospitals', authenticateToken, validate(hospitalSchema), async (re
 // PATCH /masters/hospitals/:id
 router.patch('/hospitals/:id', authenticateToken, async (req, res) => {
     try {
+        const { id, createdAt, isActive, ...updateData } = req.body;
         const [updated] = await db.update(hospitals)
-            .set(req.body)
+            .set(updateData)
             .where(eq(hospitals.id, req.params.id))
             .returning();
 
@@ -132,8 +133,9 @@ router.post('/departments', authenticateToken, validate(departmentSchema), async
 // PATCH /masters/departments/:id
 router.patch('/departments/:id', authenticateToken, async (req, res) => {
     try {
+        const { id, createdAt, isActive, ...updateData } = req.body;
         const [updated] = await db.update(departments)
-            .set(req.body)
+            .set(updateData)
             .where(eq(departments.id, req.params.id))
             .returning();
 
@@ -211,8 +213,9 @@ router.post('/doctors', authenticateToken, validate(doctorSchema), async (req, r
 // PATCH /masters/doctors/:id
 router.patch('/doctors/:id', authenticateToken, async (req, res) => {
     try {
+        const { id, createdAt, isActive, ...updateData } = req.body;
         const [updated] = await db.update(doctors)
-            .set(req.body)
+            .set(updateData)
             .where(eq(doctors.id, req.params.id))
             .returning();
 

@@ -11,10 +11,12 @@ export const users = sqliteTable('users', {
   name: text('name').notNull(),
   email: text('email').unique().notNull(),
   passwordHash: text('password_hash').notNull(),
-  role: text('role').default('advisor'), // 'owner', 'admin', 'advisor', 'viewer'
+  role: text('role').default('advisor'), // 'owner', 'admin', 'advisor', 'viewer', 'agent'
   phone: text('phone'),
+  linkedAgentId: text('linked_agent_id'), // links agent-role user to agents table
   isActive: integer('is_active', { mode: 'boolean' }).default(true),
   canManageUsers: integer('can_manage_users', { mode: 'boolean' }).default(false),
+  permissions: text('permissions', { mode: 'json' }), // {dashboard:true, leads:true, ...}
   lastLoginAt: integer('last_login_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now') * 1000)`),
 });
@@ -71,6 +73,7 @@ export const agents = sqliteTable('agents', {
   companyName: text('company_name'),
   phone: text('phone'),
   countryCode: text('country_code'),
+  phoneNumbers: text('phone_numbers', { mode: 'json' }), // [{countryCode, phone, label}]
   email: text('email'),
   country: text('country'),
   city: text('city'),
@@ -122,14 +125,27 @@ export const leads = sqliteTable('leads', {
   insuranceDetails: text('insurance_details'),
   referringDoctor: text('referring_doctor'),
   medicalHistoryNotes: text('medical_history_notes'),
+  nativeAddress: text('native_address'),
+  highCommissionName: text('high_commission_name'),
+  embassyName: text('embassy_name'),
+  indiaAddress: text('india_address'),
+  indianPhoneNumber: text('indian_phone_number'),
+  tentativeDuration: text('tentative_duration'),
+  appointmentDate: text('appointment_date'),
 
   // Assignment & tracking
   agentId: text('agent_id').references(() => agents.id),
   assignedTo: text('assigned_to').references(() => users.id),
-  status: text('status').default('new'), // 'new', 'junk', 'valid', 'prospect', ...
+  status: text('status').default('new'), // 'new', 'junk', 'valid', 'prospect', 'visa_letter_requested', 'visa_received', 'appointment_booked', 'visited', 'service_taken', 'lost'
   source: text('source').default('manual'),
   utmParams: text('utm_params', { mode: 'json' }),
   lang: text('lang'),
+
+  // Verification (for agent-submitted leads)
+  verificationStatus: text('verification_status').default('pending'), // 'pending', 'accepted', 'rejected'
+  verifiedBy: text('verified_by').references(() => users.id),
+  verifiedAt: integer('verified_at', { mode: 'timestamp' }),
+  rejectionReason: text('rejection_reason'),
 
   // Prescription
   prescriptionUrl: text('prescription_url'),
@@ -151,17 +167,30 @@ export const leads = sqliteTable('leads', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now') * 1000)`),
 });
 
+// ─── Attendants ──────────────────────────────────────────────────────────────
+
+export const attendants = sqliteTable('attendants', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  leadId: text('lead_id').references(() => leads.id).notNull(),
+  name: text('name').notNull(),
+  dateOfBirth: text('date_of_birth'),
+  passportNumber: text('passport_number'),
+  relationship: text('relationship'), // spouse, parent, child, sibling, other
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now') * 1000)`),
+});
+
 // ─── Documents ───────────────────────────────────────────────────────────────
 
 export const documents = sqliteTable('documents', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   leadId: text('lead_id').references(() => leads.id).notNull(),
-  docType: text('doc_type').notNull(), // 'passport', 'visa_letter', ...
+  docType: text('doc_type').notNull(), // 'passport', 'visa_letter', 'visa_invite_letter', 'prescription', ...
   fileName: text('file_name'),
   fileUrl: text('file_url').notNull(),
   fileSize: integer('file_size'),
   mimeType: text('mime_type'),
   uploadedBy: text('uploaded_by').references(() => users.id),
+  uploadedByAgent: text('uploaded_by_agent').references(() => agents.id),
   notes: text('notes'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now') * 1000)`),
 });

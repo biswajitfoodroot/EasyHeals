@@ -11,12 +11,41 @@ import { logger } from '../server.js';
 
 const router = express.Router();
 
+const DEFAULT_PERMISSIONS = {
+    dashboard: true,
+    leads: true,
+    pipeline: true,
+    agents: false,
+    masters: false,
+    invoices: false,
+    reports: false,
+    whatsapp: true,
+    archive: false,
+    closed_cases: true,
+    users: false,
+};
+
+const permissionsSchema = z.object({
+    dashboard: z.boolean().optional(),
+    leads: z.boolean().optional(),
+    pipeline: z.boolean().optional(),
+    agents: z.boolean().optional(),
+    masters: z.boolean().optional(),
+    invoices: z.boolean().optional(),
+    reports: z.boolean().optional(),
+    whatsapp: z.boolean().optional(),
+    archive: z.boolean().optional(),
+    closed_cases: z.boolean().optional(),
+    users: z.boolean().optional(),
+}).optional();
+
 const createUserSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     email: z.string().email('Valid email required'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     role: z.enum(['owner', 'admin', 'advisor', 'viewer']).optional().default('advisor'),
     phone: z.string().optional(),
+    permissions: permissionsSchema,
 });
 
 const updateUserSchema = z.object({
@@ -25,22 +54,26 @@ const updateUserSchema = z.object({
     phone: z.string().optional(),
     isActive: z.boolean().optional(),
     canManageUsers: z.boolean().optional(),
+    permissions: permissionsSchema,
 });
+
+const userSelectFields = {
+    id: users.id,
+    name: users.name,
+    email: users.email,
+    role: users.role,
+    phone: users.phone,
+    isActive: users.isActive,
+    canManageUsers: users.canManageUsers,
+    permissions: users.permissions,
+    lastLoginAt: users.lastLoginAt,
+    createdAt: users.createdAt,
+};
 
 // GET /users/me — Current user profile
 router.get('/me', authenticateToken, async (req, res) => {
     try {
-        const [user] = await db.select({
-            id: users.id,
-            name: users.name,
-            email: users.email,
-            role: users.role,
-            phone: users.phone,
-            isActive: users.isActive,
-            canManageUsers: users.canManageUsers,
-            lastLoginAt: users.lastLoginAt,
-            createdAt: users.createdAt,
-        }).from(users)
+        const [user] = await db.select(userSelectFields).from(users)
             .where(eq(users.id, req.user.id))
             .limit(1);
 
@@ -55,17 +88,7 @@ router.get('/me', authenticateToken, async (req, res) => {
 // GET /users — List all users (admin+ only)
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const results = await db.select({
-            id: users.id,
-            name: users.name,
-            email: users.email,
-            role: users.role,
-            phone: users.phone,
-            isActive: users.isActive,
-            canManageUsers: users.canManageUsers,
-            lastLoginAt: users.lastLoginAt,
-            createdAt: users.createdAt,
-        }).from(users)
+        const results = await db.select(userSelectFields).from(users)
             .orderBy(desc(users.createdAt));
 
         res.json(results);
@@ -81,6 +104,10 @@ router.post('/', authenticateToken, requireAdmin, validate(createUserSchema), as
         const data = req.validatedBody;
         const passwordHash = await bcrypt.hash(data.password, 10);
 
+        // Owner/admin bypass permissions; for others, apply defaults merged with provided
+        const isAdminRole = data.role === 'owner' || data.role === 'admin';
+        const permissions = isAdminRole ? null : { ...DEFAULT_PERMISSIONS, ...data.permissions };
+
         const [newUser] = await db.insert(users).values({
             name: data.name,
             email: data.email,
@@ -88,16 +115,9 @@ router.post('/', authenticateToken, requireAdmin, validate(createUserSchema), as
             role: data.role,
             phone: data.phone,
             isActive: true,
-            canManageUsers: data.role === 'owner' || data.role === 'admin',
-        }).returning({
-            id: users.id,
-            name: users.name,
-            email: users.email,
-            role: users.role,
-            phone: users.phone,
-            isActive: users.isActive,
-            createdAt: users.createdAt,
-        });
+            canManageUsers: isAdminRole,
+            permissions,
+        }).returning(userSelectFields);
 
         res.status(201).json(newUser);
     } catch (error) {
@@ -123,6 +143,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
             try {
                 const parsed = createUserSchema.parse(userData);
                 const passwordHash = await bcrypt.hash(parsed.password, 10);
+                const isAdminRole = parsed.role === 'owner' || parsed.role === 'admin';
 
                 const [newUser] = await db.insert(users).values({
                     name: parsed.name,
@@ -131,7 +152,8 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
                     role: parsed.role,
                     phone: parsed.phone,
                     isActive: true,
-                    canManageUsers: parsed.role === 'owner' || parsed.role === 'admin',
+                    canManageUsers: isAdminRole,
+                    permissions: isAdminRole ? null : { ...DEFAULT_PERMISSIONS, ...parsed.permissions },
                 }).returning({
                     id: users.id,
                     name: users.name,
@@ -160,18 +182,16 @@ router.patch('/:id', authenticateToken, requireAdmin, validate(updateUserSchema)
     try {
         const data = req.validatedBody;
 
+        // If role changed to owner/admin, clear permissions (they bypass)
+        if (data.role === 'owner' || data.role === 'admin') {
+            data.permissions = null;
+            data.canManageUsers = true;
+        }
+
         const [updated] = await db.update(users)
             .set(data)
             .where(eq(users.id, req.params.id))
-            .returning({
-                id: users.id,
-                name: users.name,
-                email: users.email,
-                role: users.role,
-                phone: users.phone,
-                isActive: users.isActive,
-                canManageUsers: users.canManageUsers,
-            });
+            .returning(userSelectFields);
 
         if (!updated) return res.status(404).json({ error: 'User not found' });
         res.json(updated);

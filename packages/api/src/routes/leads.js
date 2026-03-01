@@ -2,12 +2,20 @@ import express from 'express';
 import { z } from 'zod';
 import { rateLimit } from 'express-rate-limit';
 import { db } from '../db/index.js';
-import { leads, activities, hospitals, departments, doctors, agents, users } from '../db/schema.js';
+import { leads, activities, hospitals, departments, doctors, agents, users, attendants, documents } from '../db/schema.js';
 import { desc, eq, or, like, and, gte, lte, count, sql, inArray } from 'drizzle-orm';
 import { logger } from '../server.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/roleCheck.js';
 import { validate } from '../middleware/validate.js';
+import { requireAdvisor } from '../middleware/roles.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename2 = fileURLToPath(import.meta.url);
+const __dirname2 = path.dirname(__filename2);
 
 const router = express.Router();
 
@@ -47,7 +55,7 @@ const createLeadSchema = z.object({
     medicalHistoryNotes: z.string().optional(),
     agentId: z.string().uuid().optional().nullable(),
     assignedTo: z.string().uuid().optional().nullable(),
-    status: z.enum(['new', 'junk', 'valid', 'prospect', 'visa_letter_requested', 'visa_received', 'appointment_booked', 'visited', 'converted', 'lost']).optional().default('new'),
+    status: z.enum(['new', 'junk', 'valid', 'prospect', 'visa_letter_requested', 'visa_received', 'appointment_booked', 'visited', 'service_taken', 'lost']).optional().default('new'),
     source: z.string().optional().default('manual'),
     lang: z.string().optional(),
     preferredCallTime: z.string().optional(),
@@ -207,6 +215,13 @@ async function buildLeadQuery(query) {
     if (amountMin) conditions.push(gte(leads.approximateAmount, String(amountMin)));
     if (amountMax) conditions.push(lte(leads.approximateAmount, String(amountMax)));
 
+    if (query.followUpDue === 'true') {
+        conditions.push(and(
+            lte(leads.followUpAt, new Date()),
+            inArray(leads.status, ['new', 'valid', 'prospect', 'visa_letter_requested'])
+        ));
+    }
+
     if (search) {
         conditions.push(
             sql`(${leads.name} LIKE ${'%' + search + '%'} OR ${leads.phone} LIKE ${'%' + search + '%'} OR ${leads.refId} LIKE ${'%' + search + '%'} OR ${leads.email} LIKE ${'%' + search + '%'})`
@@ -258,14 +273,23 @@ async function buildLeadQuery(query) {
 // GET /leads — List with filters + pagination
 router.get('/', authenticateToken, async (req, res) => {
     try {
-        const { page = 1, limit = 20, isArchived } = req.query;
+        const { page = 1, limit = 20, isArchived, status } = req.query;
 
-        // Get total count
+        // Get total count with same filters as data query
         let countConditions = [];
         if (isArchived === 'true') {
             countConditions.push(eq(leads.isArchived, true));
         } else {
             countConditions.push(eq(leads.isArchived, false));
+        }
+        // Apply status filter to count too
+        if (status) {
+            const statuses = Array.isArray(status) ? status : [status];
+            if (statuses.length === 1) {
+                countConditions.push(eq(leads.status, statuses[0]));
+            } else {
+                countConditions.push(inArray(leads.status, statuses));
+            }
         }
         const [totalResult] = await db.select({ count: count() }).from(leads)
             .where(and(...countConditions));
@@ -381,6 +405,80 @@ router.post('/', createLeadLimiter, async (req, res) => {
     }
 });
 
+// POST /leads/bulk — Bulk import leads
+router.post('/bulk', authenticateToken, async (req, res) => {
+    try {
+        const { leads: leadList } = req.body;
+        if (!Array.isArray(leadList) || leadList.length === 0) {
+            return res.status(400).json({ error: 'Provide an array of leads' });
+        }
+
+        const results = { created: [], skipped: [], failed: [] };
+
+        for (const raw of leadList) {
+            try {
+                // Minimal validation
+                if (!raw.name || !raw.phone) {
+                    results.failed.push({ ...raw, _error: 'Name and phone are required' });
+                    continue;
+                }
+
+                // Clean phone
+                const phone = String(raw.phone).replace(/[\s\-()]/g, '');
+
+                // Duplicate check
+                const existing = await db.select({ id: leads.id, refId: leads.refId, name: leads.name })
+                    .from(leads)
+                    .where(eq(leads.phone, phone))
+                    .limit(1);
+
+                if (existing.length > 0) {
+                    results.skipped.push({ ...raw, _error: `Duplicate: ${existing[0].refId} - ${existing[0].name}` });
+                    continue;
+                }
+
+                const refId = await generateRefId();
+
+                const [newLead] = await db.insert(leads).values({
+                    refId,
+                    name: raw.name,
+                    email: raw.email || null,
+                    phone,
+                    countryCode: raw.countryCode || '+91',
+                    altPhone: raw.altPhone || null,
+                    altCountryCode: raw.altCountryCode || '+91',
+                    country: raw.country || null,
+                    city: raw.city || null,
+                    gender: raw.gender || null,
+                    medicalIssue: raw.medicalIssue || null,
+                    approximateAmount: raw.approximateAmount ? String(raw.approximateAmount) : null,
+                    currency: raw.currency || 'INR',
+                    status: raw.status || 'new',
+                    source: raw.source || 'import',
+                    notes: raw.notes || null,
+                }).returning({ id: leads.id, refId: leads.refId, name: leads.name });
+
+                // Log activity
+                await db.insert(activities).values({
+                    leadId: newLead.id,
+                    type: 'lead_created',
+                    description: 'Lead created via bulk import',
+                    performedBy: req.user?.id || null,
+                });
+
+                results.created.push(newLead);
+            } catch (err) {
+                results.failed.push({ ...raw, _error: err.message });
+            }
+        }
+
+        res.status(201).json(results);
+    } catch (error) {
+        logger.error('Error bulk importing leads:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // GET /leads/:id — Full lead with related data + activities
 router.get('/:id', authenticateToken, async (req, res) => {
     try {
@@ -441,7 +539,33 @@ router.patch('/:id', authenticateToken, async (req, res) => {
         const [oldLead] = await db.select().from(leads).where(eq(leads.id, req.params.id)).limit(1);
         if (!oldLead) return res.status(404).json({ error: 'Lead not found' });
 
-        const updateData = { ...req.body, updatedAt: new Date() };
+        const allowedFields = [
+            'name', 'email', 'phone', 'countryCode', 'altPhone', 'altCountryCode',
+            'country', 'city', 'gender', 'dateOfBirth', 'passportNumber',
+            'medicalIssue', 'treatmentDepartmentId', 'hospitalId', 'doctorId',
+            'approximateAmount', 'currency', 'symptomsText', 'symptomsJson',
+            'estimatedTravelDate', 'numberOfAttendants', 'preferredLanguage',
+            'insuranceDetails', 'referringDoctor', 'medicalHistoryNotes',
+            'agentId', 'assignedTo', 'status', 'source', 'utmParams', 'lang',
+            'prescriptionUrl', 'prescriptionAnalysis', 'preferredCallTime',
+            'notes', 'waSentAt', 'lastContactedAt', 'followUpAt'
+        ];
+
+        const filteredBody = {};
+        for (const key of allowedFields) {
+            if (req.body[key] !== undefined) {
+                let val = req.body[key];
+
+                // Explicit type casting for database
+                if (key === 'approximateAmount') val = val ? String(val) : null;
+                if (key === 'numberOfAttendants') val = val ? Number(val) : null;
+                if (['waSentAt', 'lastContactedAt', 'followUpAt'].includes(key)) val = val ? new Date(val) : null;
+
+                filteredBody[key] = val;
+            }
+        }
+
+        const updateData = { ...filteredBody, updatedAt: new Date() };
         // Don't allow direct archive via PATCH
         delete updateData.isArchived;
         delete updateData.archivedAt;
@@ -450,10 +574,24 @@ router.patch('/:id', authenticateToken, async (req, res) => {
         const [updatedLead] = await db.update(leads)
             .set(updateData)
             .where(eq(leads.id, req.params.id))
-            .returning();
+            .returning().catch(err => {
+                console.error('DATABASE UPDATE ERROR:', err);
+                logger.error('Database update error detail:', { error: err.message, stack: err.stack, payload: updateData });
+                throw err;
+            });
 
         // Log status change
         if (req.body.status && req.body.status !== oldLead.status) {
+            // Auto-archive on junk/lost
+            if (req.body.status === 'junk' || req.body.status === 'lost') {
+                await db.update(leads)
+                    .set({
+                        isArchived: true,
+                        archivedAt: new Date(),
+                        archivedBy: req.user?.id,
+                    })
+                    .where(eq(leads.id, req.params.id));
+            }
             await db.insert(activities).values({
                 leadId: updatedLead.id,
                 type: 'status_changed',
@@ -648,4 +786,113 @@ router.post('/:id/notes', authenticateToken, async (req, res) => {
     }
 });
 
+// POST /leads/:id/verify — Accept or reject an agent-submitted lead
+router.post('/:id/verify', authenticateToken, requireAdvisor, async (req, res) => {
+    try {
+        const { action, reason } = req.body;
+        if (!['accept', 'reject'].includes(action)) {
+            return res.status(400).json({ error: 'Action must be "accept" or "reject"' });
+        }
+
+        const [lead] = await db.select().from(leads).where(eq(leads.id, req.params.id)).limit(1);
+        if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+        const updateData = {
+            verificationStatus: action === 'accept' ? 'accepted' : 'rejected',
+            verifiedBy: req.user.id,
+            verifiedAt: new Date(),
+            updatedAt: new Date(),
+        };
+        if (action === 'reject' && reason) updateData.rejectionReason = reason;
+        if (action === 'accept') {
+            updateData.status = 'valid'; // auto-advance to valid on acceptance
+        }
+
+        const [updated] = await db.update(leads)
+            .set(updateData)
+            .where(eq(leads.id, req.params.id))
+            .returning();
+
+        await db.insert(activities).values({
+            leadId: req.params.id,
+            type: action === 'accept' ? 'lead_verified' : 'lead_rejected',
+            description: action === 'accept'
+                ? 'Lead verified and accepted by advisor'
+                : `Lead rejected: ${reason || 'No reason provided'}`,
+            performedBy: req.user.id,
+        });
+
+        res.json({ message: `Lead ${action}ed`, lead: updated });
+    } catch (error) {
+        logger.error('Error verifying lead:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// POST /leads/:id/visa-letters — Upload visa invite letter (advisor only)
+const visaUploadDir = path.resolve(__dirname2, '../../../../uploads');
+const visaStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = path.join(visaUploadDir, req.params.id);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        const suffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, `visa-${suffix}${path.extname(file.originalname)}`);
+    }
+});
+const visaUpload = multer({
+    storage: visaStorage,
+    limits: { fileSize: 4 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+        cb(null, allowed.includes(file.mimetype));
+    }
+});
+
+router.post('/:id/visa-letters', authenticateToken, requireAdvisor, visaUpload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+        const fileUrl = `/uploads/${req.params.id}/${req.file.filename}`;
+        const [newDoc] = await db.insert(documents).values({
+            leadId: req.params.id,
+            docType: 'visa_invite_letter',
+            fileName: req.file.originalname,
+            fileUrl,
+            fileSize: req.file.size,
+            mimeType: req.file.mimetype,
+            uploadedBy: req.user.id,
+            notes: req.body.notes || '',
+        }).returning();
+
+        await db.insert(activities).values({
+            leadId: req.params.id,
+            type: 'document_uploaded',
+            description: `Visa invite letter uploaded: ${req.file.originalname}`,
+            performedBy: req.user.id,
+        });
+
+        res.status(201).json(newDoc);
+    } catch (error) {
+        logger.error('Error uploading visa letter:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// GET /leads/:id/attendants — List attendants for a lead
+router.get('/:id/attendants', authenticateToken, async (req, res) => {
+    try {
+        const results = await db.select().from(attendants)
+            .where(eq(attendants.leadId, req.params.id));
+        res.json(results);
+    } catch (error) {
+        logger.error('Error fetching attendants:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 export default router;
+

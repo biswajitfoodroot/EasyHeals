@@ -21,6 +21,16 @@ const useAuth = create((set, get) => ({
         return get().user?.canManageUsers || get().isAdmin;
     },
 
+    hasPermission: (section) => {
+        const user = get().user;
+        if (!user) return false;
+        // Owner and admin always have full access
+        if (user.role === 'owner' || user.role === 'admin') return true;
+        // Check permissions JSON
+        if (!user.permissions) return false;
+        return user.permissions[section] === true;
+    },
+
     login: async (email, password) => {
         const res = await api.post('/auth/login', { email, password });
         const { token, user } = res.data;

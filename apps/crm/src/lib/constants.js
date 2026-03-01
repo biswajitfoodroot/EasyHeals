@@ -8,11 +8,21 @@ export const LEAD_STATUSES = [
     { value: 'visa_received', label: 'Visa Received', color: 'indigo', bgClass: 'bg-indigo-100 text-indigo-700', dotClass: 'bg-indigo-500' },
     { value: 'appointment_booked', label: 'Appointment Booked', color: 'purple', bgClass: 'bg-purple-100 text-purple-700', dotClass: 'bg-purple-500' },
     { value: 'visited', label: 'Visited', color: 'teal', bgClass: 'bg-teal-pale text-teal', dotClass: 'bg-teal' },
-    { value: 'converted', label: 'Converted', color: 'green', bgClass: 'bg-green-100 text-green-700', dotClass: 'bg-green-500' },
+    { value: 'service_taken', label: 'Service Taken', color: 'green', bgClass: 'bg-green-100 text-green-700', dotClass: 'bg-green-500' },
     { value: 'lost', label: 'Lost', color: 'red', bgClass: 'bg-red-100 text-red-700', dotClass: 'bg-red-500' },
 ];
 
 export const getStatusConfig = (status) => LEAD_STATUSES.find(s => s.value === status) || LEAD_STATUSES[0];
+
+// ─── Status Groups ───────────────────────────────────────────────────────────
+// Leads page: only new
+export const LEAD_PAGE_STATUSES = ['new'];
+// Pipeline: active stages
+export const PIPELINE_STATUSES = ['valid', 'prospect', 'visa_letter_requested', 'visa_received', 'appointment_booked', 'visited'];
+// Closed Cases
+export const CLOSED_STATUSES = ['service_taken'];
+// Auto-archive on these
+export const AUTO_ARCHIVE_STATUSES = ['junk', 'lost'];
 
 // ─── Country Codes ───────────────────────────────────────────────────────────
 export const COUNTRY_CODES = [
@@ -78,6 +88,33 @@ export const USER_ROLES = [
     { value: 'viewer', label: 'Viewer', description: 'Read-only access', bgClass: 'bg-gray-100 text-gray-600' },
 ];
 
+// ─── Permissions Map ─────────────────────────────────────────────────────────
+export const PERMISSION_SECTIONS = [
+    {
+        group: 'Main', items: [
+            { key: 'dashboard', label: 'Dashboard' },
+            { key: 'leads', label: 'Leads' },
+            { key: 'pipeline', label: 'Pipeline' },
+            { key: 'whatsapp', label: 'WhatsApp' },
+        ]
+    },
+    {
+        group: 'Manage', items: [
+            { key: 'agents', label: 'Agents' },
+            { key: 'masters', label: 'Master Data' },
+            { key: 'invoices', label: 'Invoices' },
+            { key: 'archive', label: 'Archive' },
+            { key: 'closed_cases', label: 'Closed Cases' },
+            { key: 'reports', label: 'Reports' },
+        ]
+    },
+    {
+        group: 'Admin', items: [
+            { key: 'users', label: 'Users & Access' },
+        ]
+    },
+];
+
 // ─── Lead Sources ────────────────────────────────────────────────────────────
 export const LEAD_SOURCES = [
     'manual', 'chat', 'website', 'whatsapp', 'phone', 'referral', 'social_media', 'email', 'walk_in', 'other'
@@ -104,3 +141,24 @@ export const WA_CATEGORIES = [
     { value: 'appointment', label: 'Appointment' },
     { value: 'custom', label: 'Custom' },
 ];
+
+// ─── Relationships (attendants) ──────────────────────────────────────────────
+export const RELATIONSHIPS = [
+    { value: 'spouse', label: 'Spouse' },
+    { value: 'parent', label: 'Parent' },
+    { value: 'child', label: 'Child' },
+    { value: 'sibling', label: 'Sibling' },
+    { value: 'relative', label: 'Relative' },
+    { value: 'friend', label: 'Friend' },
+    { value: 'other', label: 'Other' },
+];
+
+// ─── Verification Statuses ───────────────────────────────────────────────────
+export const VERIFICATION_STATUSES = [
+    { value: 'pending', label: 'Pending', bgClass: 'bg-amber-100 text-amber-700' },
+    { value: 'accepted', label: 'Accepted', bgClass: 'bg-green-100 text-green-700' },
+    { value: 'rejected', label: 'Rejected', bgClass: 'bg-red-100 text-red-700' },
+];
+
+export const getVerificationConfig = (status) => VERIFICATION_STATUSES.find(s => s.value === status) || VERIFICATION_STATUSES[0];
+

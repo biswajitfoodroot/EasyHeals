@@ -24,8 +24,10 @@ api.interceptors.response.use(
         if (error.response?.status === 401) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
-            if (window.location.pathname !== '/login') {
-                window.location.href = '/login';
+            const isAgentPath = window.location.pathname.startsWith('/agent');
+            const loginPath = isAgentPath ? '/agent/login' : '/login';
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/agent/login') {
+                window.location.href = loginPath;
             }
         }
         return Promise.reject(error);

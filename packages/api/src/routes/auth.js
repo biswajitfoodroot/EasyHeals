@@ -48,6 +48,7 @@ router.post('/login', async (req, res) => {
                 email: user.email,
                 role: user.role,
                 canManageUsers: user.canManageUsers,
+                permissions: user.permissions,
             }
         });
     } catch (error) {
@@ -170,6 +171,7 @@ router.post('/setup', async (req, res) => {
                 email: owner.email,
                 role: owner.role,
                 canManageUsers: true,
+                permissions: null, // owner bypasses all
             }
         });
     } catch (error) {

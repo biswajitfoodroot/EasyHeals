@@ -2,16 +2,17 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
-import { LEAD_STATUSES } from '../lib/constants';
+import { LEAD_STATUSES, LEAD_PAGE_STATUSES } from '../lib/constants';
 import { formatCurrency, timeAgo, truncate, debounce } from '../lib/utils';
 import StatusBadge from '../components/ui/StatusBadge';
 import PhoneLink from '../components/ui/PhoneLink';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import LeadForm from '../components/leads/LeadForm';
 import LeadDetail from '../components/leads/LeadDetail';
+import ImportLeads from '../components/leads/ImportLeads';
 import {
     Plus, Search, Filter, Download, Archive, ChevronLeft,
-    ChevronRight, MoreVertical, CheckSquare, Square, Eye
+    ChevronRight, MoreVertical, CheckSquare, Square, Eye, Upload, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
@@ -22,7 +23,6 @@ export default function Leads() {
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('');
     const [page, setPage] = useState(1);
     const [showForm, setShowForm] = useState(false);
     const [editLead, setEditLead] = useState(null);
@@ -30,12 +30,33 @@ export default function Leads() {
     const [selectedIds, setSelectedIds] = useState([]);
     const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
     const [showFilters, setShowFilters] = useState(false);
+    const [showImport, setShowImport] = useState(false);
 
-    // Check for ?new=1 from FAB
+    // Filter states driven by URL
+    const statusFilter = searchParams.get('status') || '';
+    const followUpDueFilter = searchParams.get('followUpDue') === 'true';
+    const dateFromFilter = searchParams.get('dateFrom') || '';
+
+    const setFilter = (key, value) => {
+        setSearchParams(prev => {
+            if (value) prev.set(key, value);
+            else prev.delete(key);
+            return prev;
+        });
+        setPage(1);
+    };
+
+    const clearFilters = () => {
+        setSearchParams({});
+        setPage(1);
+    };
+
+    // Initial load for things like ?new=1
     useEffect(() => {
         if (searchParams.get('new') === '1') {
             setShowForm(true);
-            setSearchParams({});
+            // Optional: clear 'new' from URL after opening
+            // setSearchParams(prev => { prev.delete('new'); return prev; });
         }
     }, [searchParams]);
 
@@ -46,8 +67,17 @@ export default function Leads() {
 
     // Fetch leads
     const { data: leadsResponse, isLoading } = useQuery({
-        queryKey: ['leads', { search, status: statusFilter, page, limit: 20 }],
-        queryFn: () => api.get('/leads', { params: { search, status: statusFilter || undefined, page, limit: 20 } }).then(r => r.data),
+        queryKey: ['leads', { search, status: statusFilter, followUpDue: followUpDueFilter, dateFrom: dateFromFilter, page, limit: 20 }],
+        queryFn: () => api.get('/leads', {
+            params: {
+                search,
+                status: statusFilter || undefined,
+                followUpDue: followUpDueFilter || undefined,
+                dateFrom: dateFromFilter || undefined,
+                page,
+                limit: 20
+            }
+        }).then(r => r.data),
     });
 
     // Fetch single lead detail
@@ -96,9 +126,10 @@ export default function Leads() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                     <h1 className="page-title">Leads</h1>
-                    <p className="page-subtitle">{total} total leads</p>
+                    <p className="page-subtitle">{total} leads {statusFilter ? `(${statusFilter.replace('_', ' ')})` : ''}</p>
                 </div>
                 <div className="flex gap-2">
+                    <button onClick={() => setShowImport(true)} className="btn-secondary btn-sm hidden sm:flex"><Upload size={14} /> Import</button>
                     <button onClick={handleExport} className="btn-secondary btn-sm"><Download size={14} /> Export</button>
                     <button onClick={() => { setEditLead(null); setShowForm(true); }} className="btn-primary btn-sm hidden sm:flex"><Plus size={14} /> New Lead</button>
                 </div>
@@ -117,12 +148,37 @@ export default function Leads() {
                         />
                     </div>
                     <div className="flex gap-2">
-                        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="form-select w-auto">
+                        <select value={statusFilter} onChange={(e) => setFilter('status', e.target.value)} className="form-select w-auto">
                             <option value="">All Statuses</option>
                             {LEAD_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                     </div>
                 </div>
+
+                {/* Active Filters */}
+                {(statusFilter || followUpDueFilter || dateFromFilter) && (
+                    <div className="px-4 pb-4 flex flex-wrap gap-2">
+                        {statusFilter && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal/10 text-teal text-[10px] font-bold uppercase tracking-wider">
+                                Status: {statusFilter.replace('_', ' ')}
+                                <button onClick={() => setFilter('status', '')} className="hover:bg-teal/20 p-0.5 rounded-full"><X size={12} /></button>
+                            </span>
+                        )}
+                        {followUpDueFilter && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 text-[10px] font-bold uppercase tracking-wider">
+                                Follow-up Due
+                                <button onClick={() => setFilter('followUpDue', '')} className="hover:bg-amber-500/20 p-0.5 rounded-full"><X size={12} /></button>
+                            </span>
+                        )}
+                        {dateFromFilter && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-600 text-[10px] font-bold uppercase tracking-wider">
+                                From: {dateFromFilter}
+                                <button onClick={() => setFilter('dateFrom', '')} className="hover:bg-blue-500/20 p-0.5 rounded-full"><X size={12} /></button>
+                            </span>
+                        )}
+                        <button onClick={clearFilters} className="text-[10px] font-bold text-teal hover:underline ml-1">CLEAR ALL</button>
+                    </div>
+                )}
 
                 {/* Bulk Actions Bar */}
                 {selectedIds.length > 0 && (
@@ -183,7 +239,7 @@ export default function Leads() {
                                                     <div className="text-[10px] text-muted font-mono">{lead.refId}</div>
                                                 </td>
                                                 <td className="table-cell">
-                                                    <PhoneLink countryCode={lead.countryCode} phone={lead.phone} showWhatsApp={false} />
+                                                    <PhoneLink countryCode={lead.countryCode} phone={lead.phone} showWhatsApp={true} />
                                                 </td>
                                                 <td className="table-cell"><StatusBadge status={lead.status} /></td>
                                                 <td className="table-cell hidden lg:table-cell">
@@ -251,7 +307,7 @@ export default function Leads() {
             </div>
 
             {/* Lead Form Drawer */}
-            <LeadForm isOpen={showForm} onClose={() => { setShowForm(false); setEditLead(null); }} editLead={editLead} />
+            <LeadForm isOpen={showForm} onClose={() => { setShowForm(false); setEditLead(null); }} editLead={editLead} key={editLead?.id || 'new'} />
 
             {/* Archive Confirm */}
             <ConfirmDialog
@@ -263,6 +319,9 @@ export default function Leads() {
                 confirmLabel="Archive"
                 loading={bulkArchive.isPending}
             />
+
+            {/* Import Leads Drawer */}
+            <ImportLeads isOpen={showImport} onClose={() => setShowImport(false)} />
         </div>
     );
 }

@@ -4,7 +4,7 @@ import api from '../lib/api';
 import Modal from '../components/ui/Modal';
 import PhoneLink from '../components/ui/PhoneLink';
 import { COUNTRY_CODES } from '../lib/constants';
-import { Plus, Search, Edit3, Trash2, Briefcase, Users, TrendingUp } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, Briefcase, X, Phone, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Agents() {
@@ -12,6 +12,7 @@ export default function Agents() {
     const [search, setSearch] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [editAgent, setEditAgent] = useState(null);
+    const [loginAgent, setLoginAgent] = useState(null);
 
     const { data: agentsRes, isLoading } = useQuery({
         queryKey: ['agents', search],
@@ -61,16 +62,25 @@ export default function Agents() {
                                     </div>
                                 </div>
                                 <div className="flex gap-1">
+                                    <button onClick={() => setLoginAgent(agent)} className="btn-icon" title={agent.hasPortalLogin ? "Reset Portal Password" : "Enable Portal Login"}><KeyRound size={14} className={agent.hasPortalLogin ? "text-purple-600" : "text-teal"} /></button>
                                     <button onClick={() => { setEditAgent(agent); setShowModal(true); }} className="btn-icon"><Edit3 size={14} className="text-muted" /></button>
                                     <button onClick={() => { if (confirm('Deactivate?')) deleteMutation.mutate(agent.id); }} className="btn-icon"><Trash2 size={14} className="text-red-400" /></button>
                                 </div>
                             </div>
 
-                            {agent.phone && (
-                                <div className="mb-3">
+                            {/* Multiple phone numbers */}
+                            <div className="mb-3 space-y-1">
+                                {agent.phoneNumbers && agent.phoneNumbers.length > 0 ? (
+                                    agent.phoneNumbers.map((p, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                            <PhoneLink countryCode={p.countryCode} phone={p.phone} showWhatsApp={true} />
+                                            {p.label && p.label !== 'Primary' && <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded-full font-bold">{p.label}</span>}
+                                        </div>
+                                    ))
+                                ) : agent.phone ? (
                                     <PhoneLink countryCode={agent.countryCode} phone={agent.phone} />
-                                </div>
-                            )}
+                                ) : null}
+                            </div>
 
                             <div className="flex items-center gap-4 text-xs text-muted">
                                 {agent.country && <span>📍 {agent.country}</span>}
@@ -92,6 +102,9 @@ export default function Agents() {
             {showModal && (
                 <AgentFormModal agent={editAgent} onClose={() => { setShowModal(false); setEditAgent(null); }} />
             )}
+            {loginAgent && (
+                <AgentPortalModal agent={loginAgent} onClose={() => setLoginAgent(null)} />
+            )}
         </div>
     );
 }
@@ -99,7 +112,15 @@ export default function Agents() {
 function AgentFormModal({ agent, onClose }) {
     const queryClient = useQueryClient();
     const isEdit = !!agent;
+
+    const defaultPhones = agent?.phoneNumbers?.length > 0
+        ? agent.phoneNumbers
+        : agent?.phone
+            ? [{ countryCode: agent.countryCode || '+91', phone: agent.phone, label: 'Primary' }]
+            : [{ countryCode: '+91', phone: '', label: 'Primary' }];
+
     const [form, setForm] = useState(agent || { name: '', countryCode: '+91' });
+    const [phoneNumbers, setPhoneNumbers] = useState(defaultPhones);
 
     const mutation = useMutation({
         mutationFn: (data) => isEdit ? api.patch(`/agents/${agent.id}`, data) : api.post('/agents', data),
@@ -109,22 +130,60 @@ function AgentFormModal({ agent, onClose }) {
 
     const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
+    const updatePhone = (i, field, val) => {
+        setPhoneNumbers(prev => prev.map((p, idx) => idx === i ? { ...p, [field]: val } : p));
+    };
+
+    const addPhone = () => {
+        setPhoneNumbers(prev => [...prev, { countryCode: '+91', phone: '', label: '' }]);
+    };
+
+    const removePhone = (i) => {
+        setPhoneNumbers(prev => prev.filter((_, idx) => idx !== i));
+    };
+
+    const handleSave = () => {
+        const validPhones = phoneNumbers.filter(p => p.phone.trim());
+        const data = {
+            ...form,
+            phoneNumbers: validPhones,
+            phone: validPhones[0]?.phone || form.phone,
+            countryCode: validPhones[0]?.countryCode || form.countryCode,
+        };
+        mutation.mutate(data);
+    };
+
     return (
         <Modal isOpen={true} onClose={onClose} title={`${isEdit ? 'Edit' : 'Add'} Agent`} size="lg"
-            footer={<><button onClick={onClose} className="btn-secondary">Cancel</button><button onClick={() => mutation.mutate(form)} disabled={mutation.isPending} className="btn-primary">{mutation.isPending ? 'Saving...' : 'Save'}</button></>}>
+            footer={<><button onClick={onClose} className="btn-secondary">Cancel</button><button onClick={handleSave} disabled={mutation.isPending} className="btn-primary">{mutation.isPending ? 'Saving...' : 'Save'}</button></>}>
             <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                     <div><label className="form-label">Name *</label><input value={form.name || ''} onChange={(e) => update('name', e.target.value)} className="form-input" required /></div>
                     <div><label className="form-label">Company</label><input value={form.companyName || ''} onChange={(e) => update('companyName', e.target.value)} className="form-input" /></div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                    <div><label className="form-label">Code</label>
-                        <select value={form.countryCode || '+91'} onChange={(e) => update('countryCode', e.target.value)} className="form-select">
-                            {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.code}</option>)}
-                        </select>
+
+                {/* Phone Numbers Section */}
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="form-label mb-0">Phone Numbers</label>
+                        <button type="button" onClick={addPhone} className="btn-ghost btn-sm text-xs"><Plus size={12} /> Add Number</button>
                     </div>
-                    <div className="col-span-2"><label className="form-label">Phone</label><input value={form.phone || ''} onChange={(e) => update('phone', e.target.value)} className="form-input" /></div>
+                    <div className="space-y-2">
+                        {phoneNumbers.map((p, i) => (
+                            <div key={i} className="flex gap-2 items-center bg-gray-50 p-2 rounded-xl">
+                                <select value={p.countryCode || '+91'} onChange={(e) => updatePhone(i, 'countryCode', e.target.value)} className="form-select w-24 text-xs">
+                                    {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.code}</option>)}
+                                </select>
+                                <input value={p.phone || ''} onChange={(e) => updatePhone(i, 'phone', e.target.value)} className="form-input flex-1" placeholder="Phone number" />
+                                <input value={p.label || ''} onChange={(e) => updatePhone(i, 'label', e.target.value)} className="form-input w-24 text-xs" placeholder="Label" />
+                                {phoneNumbers.length > 1 && (
+                                    <button type="button" onClick={() => removePhone(i)} className="p-1.5 hover:bg-red-100 rounded-lg text-red-400"><X size={14} /></button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
+
                 <div><label className="form-label">Email</label><input type="email" value={form.email || ''} onChange={(e) => update('email', e.target.value)} className="form-input" /></div>
                 <div className="grid grid-cols-2 gap-3">
                     <div><label className="form-label">Country</label><input value={form.country || ''} onChange={(e) => update('country', e.target.value)} className="form-input" /></div>
@@ -146,6 +205,56 @@ function AgentFormModal({ agent, onClose }) {
                     <div><label className="form-label">Bank Account</label><input value={form.bankAccount || ''} onChange={(e) => update('bankAccount', e.target.value)} className="form-input" /></div>
                 </div>
                 <div><label className="form-label">Notes</label><textarea rows={3} value={form.notes || ''} onChange={(e) => update('notes', e.target.value)} className="form-textarea" /></div>
+            </div>
+        </Modal>
+    );
+}
+
+function AgentPortalModal({ agent, onClose }) {
+    const [email, setEmail] = useState(agent.email || '');
+    const [password, setPassword] = useState('');
+    const queryClient = useQueryClient();
+    const isReset = !!agent.hasPortalLogin;
+
+    const mutation = useMutation({
+        mutationFn: (data) => isReset
+            ? api.post(`/agents/${agent.id}/reset-password`, data)
+            : api.post(`/agents/${agent.id}/create-login`, data),
+        onSuccess: () => {
+            toast.success(isReset ? `Password reset for ${agent.name}` : `Portal login created for ${agent.name}`);
+            queryClient.invalidateQueries({ queryKey: ['agents'] });
+            onClose();
+        },
+        onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+    });
+
+    const handleAction = () => {
+        if (!password || password.length < 6) {
+            toast.error('Password must be at least 6 characters');
+            return;
+        }
+        mutation.mutate({ email, password });
+    };
+
+    return (
+        <Modal isOpen={true} onClose={onClose} title={isReset ? "Reset Portal Password" : "Enable Portal Login"} size="sm"
+            footer={<><button onClick={onClose} className="btn-secondary">Cancel</button><button onClick={handleAction} disabled={(isReset ? false : !email) || !password || mutation.isPending} className="btn-primary">{mutation.isPending ? 'Processing...' : (isReset ? 'Reset Password' : 'Create Login')}</button></>}>
+            <div className="space-y-4">
+                {isReset ? (
+                    <p className="text-sm text-muted">Reset the portal password for <strong>{agent.name}</strong>.</p>
+                ) : (
+                    <>
+                        <p className="text-sm text-muted">Create portal login credentials for <strong>{agent.name}</strong>.</p>
+                        <div>
+                            <label className="form-label">Email</label>
+                            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input" placeholder="agent@email.com" />
+                        </div>
+                    </>
+                )}
+                <div>
+                    <label className="form-label">New Password (min 6 chars)</label>
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="form-input" placeholder="Set password" />
+                </div>
             </div>
         </Modal>
     );

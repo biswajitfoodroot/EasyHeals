@@ -3,36 +3,42 @@ import {
     BarChart3, Users, LayoutGrid, MessageSquare,
     Settings, LogOut, UserCog, Building2, FileText,
     Archive, ClipboardList, TrendingUp, Menu, X,
-    Plus, MoreHorizontal, Briefcase, Search
+    Plus, MoreHorizontal, Briefcase, Search, CheckCircle
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 
 const mainNavItems = [
-    { icon: BarChart3, label: 'Dashboard', path: '/' },
-    { icon: Users, label: 'Leads', path: '/leads' },
-    { icon: LayoutGrid, label: 'Pipeline', path: '/pipeline' },
-    { icon: MessageSquare, label: 'WhatsApp', path: '/whatsapp' },
+    { icon: BarChart3, label: 'Dashboard', path: '/', permission: 'dashboard' },
+    { icon: Users, label: 'Leads', path: '/leads', permission: 'leads' },
+    { icon: LayoutGrid, label: 'Pipeline', path: '/pipeline', permission: 'pipeline' },
+    { icon: MessageSquare, label: 'WhatsApp', path: '/whatsapp', permission: 'whatsapp' },
 ];
 
 const moreNavItems = [
-    { icon: Briefcase, label: 'Agents', path: '/agents' },
-    { icon: Building2, label: 'Master Data', path: '/masters' },
-    { icon: FileText, label: 'Invoices', path: '/invoices' },
-    { icon: Archive, label: 'Archive', path: '/archive' },
-    { icon: TrendingUp, label: 'Reports', path: '/reports' },
+    { icon: Briefcase, label: 'Agents & Referrers', path: '/agents', permission: 'agents' },
+    { icon: Building2, label: 'Master Data', path: '/masters', permission: 'masters' },
+    { icon: FileText, label: 'Invoices', path: '/invoices', permission: 'invoices' },
+    { icon: CheckCircle, label: 'Closed Cases', path: '/closed-cases', permission: 'closed_cases' },
+    { icon: Archive, label: 'Archive', path: '/archive', permission: 'archive' },
+    { icon: TrendingUp, label: 'Reports', path: '/reports', permission: 'reports' },
 ];
 
 const adminNavItems = [
-    { icon: UserCog, label: 'Users', path: '/users' },
+    { icon: UserCog, label: 'Users', path: '/users', permission: 'users' },
 ];
 
 export default function Sidebar() {
-    const { user, logout, isAdmin } = useAuth();
+    const { user, logout, isAdmin, hasPermission } = useAuth();
     const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
     const navigate = useNavigate();
 
-    const allNavItems = [...mainNavItems, ...moreNavItems, ...(isAdmin ? adminNavItems : [])];
+    const filterByPermission = (items) => items.filter(item => hasPermission(item.permission));
+
+    const visibleMain = filterByPermission(mainNavItems);
+    const visibleMore = filterByPermission(moreNavItems);
+    const visibleAdmin = isAdmin ? adminNavItems : [];
+    const allNavItems = [...visibleMain, ...visibleMore, ...visibleAdmin];
 
     return (
         <>
@@ -56,34 +62,42 @@ export default function Sidebar() {
 
                 {/* Main Nav */}
                 <div className="flex-1 space-y-0.5 overflow-y-auto custom-scrollbar">
-                    <div className="px-3 py-2 text-[10px] font-bold text-muted/60 uppercase tracking-widest">Main</div>
-                    {mainNavItems.map((item) => (
-                        <NavLink
-                            key={item.label}
-                            to={item.path}
-                            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                        >
-                            <item.icon size={18} />
-                            <span className="text-sm">{item.label}</span>
-                        </NavLink>
-                    ))}
+                    {visibleMain.length > 0 && (
+                        <>
+                            <div className="px-3 py-2 text-[10px] font-bold text-muted/60 uppercase tracking-widest">Main</div>
+                            {visibleMain.map((item) => (
+                                <NavLink
+                                    key={item.label}
+                                    to={item.path}
+                                    className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                                >
+                                    <item.icon size={18} />
+                                    <span className="text-sm">{item.label}</span>
+                                </NavLink>
+                            ))}
+                        </>
+                    )}
 
-                    <div className="px-3 py-2 mt-4 text-[10px] font-bold text-muted/60 uppercase tracking-widest">Manage</div>
-                    {moreNavItems.map((item) => (
-                        <NavLink
-                            key={item.label}
-                            to={item.path}
-                            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                        >
-                            <item.icon size={18} />
-                            <span className="text-sm">{item.label}</span>
-                        </NavLink>
-                    ))}
+                    {visibleMore.length > 0 && (
+                        <>
+                            <div className="px-3 py-2 mt-4 text-[10px] font-bold text-muted/60 uppercase tracking-widest">Manage</div>
+                            {visibleMore.map((item) => (
+                                <NavLink
+                                    key={item.label}
+                                    to={item.path}
+                                    className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+                                >
+                                    <item.icon size={18} />
+                                    <span className="text-sm">{item.label}</span>
+                                </NavLink>
+                            ))}
+                        </>
+                    )}
 
-                    {isAdmin && (
+                    {visibleAdmin.length > 0 && (
                         <>
                             <div className="px-3 py-2 mt-4 text-[10px] font-bold text-muted/60 uppercase tracking-widest">Admin</div>
-                            {adminNavItems.map((item) => (
+                            {visibleAdmin.map((item) => (
                                 <NavLink
                                     key={item.label}
                                     to={item.path}
@@ -122,7 +136,7 @@ export default function Sidebar() {
             {/* ─── Mobile Bottom Nav ─── */}
             <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-40 safe-area-bottom">
                 <div className="flex items-center justify-around">
-                    {mainNavItems.map((item) => (
+                    {visibleMain.slice(0, 4).map((item) => (
                         <NavLink
                             key={item.label}
                             to={item.path}

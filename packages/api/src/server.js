@@ -17,6 +17,7 @@ import agentRoutes from './routes/agents.js';
 import documentRoutes from './routes/documents.js';
 import invoiceRoutes from './routes/invoices.js';
 import userRoutes from './routes/users.js';
+import agentPortalRoutes from './routes/agentPortal.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +64,7 @@ app.use('/v1/agents', agentRoutes);
 app.use('/v1', documentRoutes);          // /v1/leads/:leadId/documents + /v1/documents/:id
 app.use('/v1/invoices', invoiceRoutes);
 app.use('/v1/users', userRoutes);
+app.use('/v1/agent-portal', agentPortalRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
