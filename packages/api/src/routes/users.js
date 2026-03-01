@@ -7,7 +7,7 @@ import { eq, desc } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/roleCheck.js';
 import { validate } from '../middleware/validate.js';
-import { logger } from '../server.js';
+import { logger } from '../app.js';
 
 const router = express.Router();
 

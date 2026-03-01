@@ -5,7 +5,7 @@ import { leads, activities } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { uploadToS3 } from '../services/storageService.js';
 import { analysePrescriptionWithGemini } from '../services/geminiService.js';
-import { logger } from '../server.js';
+import { logger } from '../app.js';
 
 const router = express.Router();
 const upload = multer({

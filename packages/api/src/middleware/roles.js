@@ -1,4 +1,4 @@
-import { logger } from '../server.js';
+import { logger } from '../app.js';
 
 /**
  * Middleware: Requires the authenticated user to have role 'agent'.

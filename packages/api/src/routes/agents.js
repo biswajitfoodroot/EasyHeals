@@ -5,7 +5,7 @@ import { agents, leads, activities } from '../db/schema.js';
 import { eq, like, and, desc, count, sql } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { logger } from '../server.js';
+import { logger } from '../app.js';
 
 const router = express.Router();
 

@@ -1,4 +1,4 @@
-import { logger } from '../server.js';
+import { logger } from '../app.js';
 
 /**
  * Role-based access control middleware.

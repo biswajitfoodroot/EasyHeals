@@ -73,7 +73,7 @@ export default function SearchableSelect({
                 </div>
             </button>
 
-            {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+            {error && <p className="text-red-500 text-xs mt-1">{typeof error === 'string' ? error : (error.message || 'An error occurred')}</p>}
 
             {/* Dropdown */}
             {isOpen && (

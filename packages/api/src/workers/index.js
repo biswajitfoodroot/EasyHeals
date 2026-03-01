@@ -4,7 +4,7 @@ import { sendWhatsAppTemplate } from '../services/whatsappService.js';
 import { db } from '../db/index.js';
 import { leads } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { logger } from '../server.js';
+import { logger } from '../app.js';
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
     maxRetriesPerRequest: null,
