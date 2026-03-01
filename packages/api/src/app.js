@@ -18,7 +18,6 @@ import documentRoutes from './routes/documents.js';
 import invoiceRoutes from './routes/invoices.js';
 import userRoutes from './routes/users.js';
 import agentPortalRoutes from './routes/agentPortal.js';
-import setupRoutes from './routes/setup.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,7 +66,6 @@ app.use('/v1', documentRoutes);          // /v1/leads/:leadId/documents + /v1/do
 app.use('/v1/invoices', invoiceRoutes);
 app.use('/v1/users', userRoutes);
 app.use('/v1/agent-portal', agentPortalRoutes);
-app.use('/v1/setup', setupRoutes); // ⚠️ One-time setup — remove after use
 
 // Health check
 app.get('/v1/health', async (req, res) => {
