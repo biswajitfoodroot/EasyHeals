@@ -8,7 +8,10 @@
     "dev": "node src/server.js",
     "start": "node src/server.js",
     "build": "echo 'No build step for API'",
-    "migrate": "drizzle-kit generate && drizzle-kit migrate"
+    "migrate": "drizzle-kit generate && drizzle-kit migrate",
+    "push": "drizzle-kit push",
+    "seed": "node src/db/seed.js",
+    "setup": "drizzle-kit push && node src/db/seed.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
