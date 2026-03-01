@@ -1,11 +1,30 @@
 {
-    "buildCommand": "npm run build",
-    "outputDirectory": "apps/crm/dist",
-    "framework": "vite",
-    "rewrites": [
+    "version": 2,
+    "builds": [
         {
-            "source": "/(.*)",
-            "destination": "/index.html"
+            "src": "package.json",
+            "use": "@vercel/static-build",
+            "config": {
+                "distDir": "apps/crm/dist"
+            }
+        },
+        {
+            "src": "api/index.js",
+            "use": "@vercel/node"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/v1/(.*)",
+            "dest": "api/index.js"
+        },
+        {
+            "src": "/uploads/(.*)",
+            "dest": "api/index.js"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "index.html"
         }
     ]
 }
