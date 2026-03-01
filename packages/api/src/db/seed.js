@@ -34,10 +34,10 @@ const seedData = async () => {
         // 3. Seed Doctors (Sample)
         console.log('  Adding Doctors...');
         const docData = [
-            { name: 'Dr. Ashok Seth', specialization: 'Interventional Cardiology', hospitalId: hospMap['Fortis Memorial Research Institute'], departmentId: deptMap['Cardiology'], qualification: 'MD, DM, FRCP', experience: '30+ Years' },
-            { name: 'Dr. Naresh Trehan', specialization: 'Cardiovascular Surgery', hospitalId: hospMap['Medanta - The Medicity'], departmentId: deptMap['Cardiology'], qualification: 'MBBS, MD', experience: '40+ Years' },
-            { name: 'Dr. Harit Chaturvedi', specialization: 'Surgical Oncology', hospitalId: hospMap['Max Super Speciality Hospital'], departmentId: deptMap['Oncology'], qualification: 'MBBS, MS, MCh', experience: '25+ Years' },
-            { name: 'Dr. Sandeep Vaishya', specialization: 'Neurosurgery', hospitalId: hospMap['Fortis Memorial Research Institute'], departmentId: deptMap['Neurology'], qualification: 'MBBS, MS, MCh', experience: '22+ Years' }
+            { name: 'Dr. Ashok Seth', specialization: 'Interventional Cardiology', hospitalId: hospMap['Fortis Memorial Research Institute'], departmentId: deptMap['Cardiology'], qualification: 'MD, DM, FRCP', experienceYears: 30 },
+            { name: 'Dr. Naresh Trehan', specialization: 'Cardiovascular Surgery', hospitalId: hospMap['Medanta - The Medicity'], departmentId: deptMap['Cardiology'], qualification: 'MBBS, MD', experienceYears: 40 },
+            { name: 'Dr. Harit Chaturvedi', specialization: 'Surgical Oncology', hospitalId: hospMap['Max Super Speciality Hospital'], departmentId: deptMap['Oncology'], qualification: 'MBBS, MS, MCh', experienceYears: 25 },
+            { name: 'Dr. Sandeep Vaishya', specialization: 'Neurosurgery', hospitalId: hospMap['Fortis Memorial Research Institute'], departmentId: deptMap['Neurology'], qualification: 'MBBS, MS, MCh', experienceYears: 22 }
         ];
         await db.insert(doctors).values(docData);
 

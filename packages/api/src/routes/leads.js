@@ -209,7 +209,7 @@ async function buildLeadQuery(query) {
 
     if (search) {
         conditions.push(
-            sql`(${leads.name} ILIKE ${'%' + search + '%'} OR ${leads.phone} ILIKE ${'%' + search + '%'} OR ${leads.refId} ILIKE ${'%' + search + '%'} OR ${leads.email} ILIKE ${'%' + search + '%'})`
+            sql`(${leads.name} LIKE ${'%' + search + '%'} OR ${leads.phone} LIKE ${'%' + search + '%'} OR ${leads.refId} LIKE ${'%' + search + '%'} OR ${leads.email} LIKE ${'%' + search + '%'})`
         );
     }
 

@@ -101,7 +101,7 @@ router.post('/', authenticateToken, requireAdmin, validate(createUserSchema), as
 
         res.status(201).json(newUser);
     } catch (error) {
-        if (error.code === '23505') {
+        if (error.code === '23505' || error.message?.includes('UNIQUE')) {
             return res.status(400).json({ error: 'Email already exists' });
         }
         logger.error('Error creating user:', error);
@@ -143,7 +143,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
             } catch (error) {
                 results.failed.push({
                     email: userData.email,
-                    error: error.code === '23505' ? 'Email already exists' : error.message
+                    error: (error.code === '23505' || error.message?.includes('UNIQUE')) ? 'Email already exists' : error.message
                 });
             }
         }

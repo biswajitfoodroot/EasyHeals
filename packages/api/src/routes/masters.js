@@ -51,7 +51,7 @@ router.post('/hospitals', authenticateToken, validate(hospitalSchema), async (re
         const [newHospital] = await db.insert(hospitals).values(data).returning();
         res.status(201).json(newHospital);
     } catch (error) {
-        if (error.code === '23505') return res.status(400).json({ error: 'Hospital already exists' });
+        if (error.code === '23505' || error.message?.includes('UNIQUE')) return res.status(400).json({ error: 'Hospital already exists' });
         logger.error('Error creating hospital:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
@@ -123,7 +123,7 @@ router.post('/departments', authenticateToken, validate(departmentSchema), async
         const [newDept] = await db.insert(departments).values(data).returning();
         res.status(201).json(newDept);
     } catch (error) {
-        if (error.code === '23505') return res.status(400).json({ error: 'Department already exists' });
+        if (error.code === '23505' || error.message?.includes('UNIQUE')) return res.status(400).json({ error: 'Department already exists' });
         logger.error('Error creating department:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }

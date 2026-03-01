@@ -37,7 +37,7 @@ router.get('/', authenticateToken, async (req, res) => {
         if (active !== 'all') conditions.push(eq(agents.isActive, true));
         if (search) {
             conditions.push(
-                sql`(${agents.name} ILIKE ${'%' + search + '%'} OR ${agents.companyName} ILIKE ${'%' + search + '%'} OR ${agents.phone} ILIKE ${'%' + search + '%'})`
+                sql`(${agents.name} LIKE ${'%' + search + '%'} OR ${agents.companyName} LIKE ${'%' + search + '%'} OR ${agents.phone} LIKE ${'%' + search + '%'})`
             );
         }
 

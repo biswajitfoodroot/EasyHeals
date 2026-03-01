@@ -1,9 +1,13 @@
+import dotenv from 'dotenv';
+dotenv.config({ path: '../../.env' });
+
 /** @type {import('drizzle-kit').Config} */
 export default {
     schema: './src/db/schema.js',
     out: './src/db/migrations',
-    dialect: 'postgresql',
+    dialect: 'turso',
     dbCredentials: {
-        url: process.env.DATABASE_URL || 'postgresql://admin:devpassword@localhost:5432/easyheals',
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
     },
 };

@@ -58,7 +58,7 @@ router.post('/templates', authenticateToken, validate(templateSchema), async (re
 
         res.status(201).json(newTemplate);
     } catch (error) {
-        if (error.code === '23505') {
+        if (error.code === '23505' || error.message?.includes('UNIQUE')) {
             return res.status(400).json({ error: 'Template name already exists' });
         }
         logger.error('Error creating template:', error);

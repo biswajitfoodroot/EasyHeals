@@ -89,7 +89,7 @@ router.post('/register', authenticateToken, async (req, res) => {
             role: newUser.role
         });
     } catch (error) {
-        if (error.code === '23505') {
+        if (error.code === '23505' || error.message?.includes('UNIQUE')) {
             return res.status(400).json({ error: 'Email already exists' });
         }
         logger.error('Registration Error:', error);
