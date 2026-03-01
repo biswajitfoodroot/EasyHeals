@@ -1,0 +1,20 @@
+{
+  "name": "easyheals-consult",
+  "private": true,
+  "version": "1.0.0",
+  "description": "EasyHeals AI Chat + CRM monorepo",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w apps/chat\" \"npm run dev -w apps/crm\" \"npm run dev -w packages/api\"",
+    "build": "npm run build --workspaces --if-present",
+    "migrate": "npm run migrate -w packages/api",
+    "install-all": "npm install && npm install --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

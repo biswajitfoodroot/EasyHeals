@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EasyHeals — Technical Specification & Build Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Lora:wght@600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --teal:#0C7B8F; --teal2:#0EA5BE; --teal-pale:#E8F7FA;
+  --green:#16A34A; --green-pale:#F0FDF4;
+  --orange:#EA580C; --orange-pale:#FFF7ED;
+  --red:#DC2626; --purple:#7C3AED; --amber:#D97706;
+  --blue:#2563EB; --blue-pale:#EFF6FF;
+  --bg:#F4F6F8; --card:#FFFFFF; --sidebar:#0F2830;
+  --border:#E2E8F0; --text:#0F172A; --text2:#475569; --muted:#94A3B8;
+  --code-bg:#0F172A; --code-text:#E2E8F0;
+  --yellow:#FBBF24;
+  --r:12px; --r-sm:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:14px;line-height:1.6;}
+
+/* ── SIDEBAR TOC ── */
+.toc{width:260px;background:var(--sidebar);position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:50;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent;}
+.toc-logo{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:9px;}
+.toc-logo-mark{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--teal),var(--green));display:flex;align-items:center;justify-content:center;font-size:16px;}
+.toc-logo-txt{font-family:'Lora',serif;font-size:16px;color:#fff;}
+.toc-logo-txt b{color:#6EF4C8;}
+.toc-section{padding:14px 14px 4px;font-size:9.5px;font-weight:700;color:rgba(255,255,255,.3);letter-spacing:.1em;text-transform:uppercase;}
+.toc-link{display:flex;align-items:center;gap:8px;padding:7px 14px;font-size:12.5px;color:rgba(255,255,255,.6);text-decoration:none;border-radius:6px;margin:1px 6px;transition:.15s;cursor:pointer;}
+.toc-link:hover{background:rgba(255,255,255,.07);color:#fff;}
+.toc-link.active{background:rgba(14,165,190,.2);color:#6EF4C8;font-weight:600;}
+.toc-link .toc-num{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.25);width:18px;flex-shrink:0;}
+.toc-link.sub{padding-left:26px;font-size:12px;}
+.build-badge{margin:12px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:10px 12px;}
+.build-badge-title{font-size:11px;font-weight:700;color:#6EF4C8;margin-bottom:4px;}
+.build-badge-text{font-size:10.5px;color:rgba(255,255,255,.5);line-height:1.5;}
+
+/* ── MAIN ── */
+.main{margin-left:260px;flex:1;max-width:calc(100% - 260px);}
+.top-bar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 32px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40;}
+.doc-title{font-size:14px;font-weight:700;color:var(--text);}
+.version-badge{background:var(--teal-pale);color:var(--teal);font-size:11px;font-weight:700;border-radius:100px;padding:2px 10px;}
+.top-bar-right{margin-left:auto;display:flex;gap:8px;}
+.tb-btn{padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:.15s;}
+.tb-btn.primary{background:var(--teal);color:#fff;}
+.tb-btn.ghost{background:var(--teal-pale);color:var(--teal);}
+.tb-btn:hover{opacity:.85;}
+
+/* ── CONTENT ── */
+.content{padding:32px 40px 80px;max-width:900px;}
+
+/* Section */
+.section{margin-bottom:52px;scroll-margin-top:64px;}
+.section-header{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding-bottom:12px;border-bottom:2px solid var(--border);}
+.section-num{width:32px;height:32px;border-radius:8px;background:var(--teal);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.section-title{font-family:'Lora',serif;font-size:22px;font-weight:600;color:var(--text);}
+.section-sub{font-size:13px;color:var(--muted);margin-top:2px;}
+
+h3{font-size:16px;font-weight:700;color:var(--text);margin:20px 0 10px;}
+h4{font-size:13.5px;font-weight:700;color:var(--text2);margin:14px 0 8px;}
+p{color:var(--text2);margin-bottom:10px;line-height:1.7;}
+
+/* Callout boxes */
+.callout{border-radius:var(--r-sm);padding:12px 16px;margin:14px 0;display:flex;gap:10px;align-items:flex-start;}
+.callout.info{background:var(--blue-pale);border-left:3px solid var(--blue);}
+.callout.warn{background:#FFFBEB;border-left:3px solid var(--amber);}
+.callout.tip{background:var(--green-pale);border-left:3px solid var(--green);}
+.callout.danger{background:#FEF2F2;border-left:3px solid var(--red);}
+.callout-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+.callout-text{font-size:12.5px;color:var(--text2);line-height:1.6;}
+.callout-text strong{color:var(--text);}
+
+/* Code block */
+.code-wrap{background:var(--code-bg);border-radius:var(--r);overflow:hidden;margin:12px 0;}
+.code-bar{background:rgba(255,255,255,.06);padding:8px 14px;display:flex;align-items:center;gap:8px;}
+.code-lang{font-size:11px;font-weight:600;color:rgba(255,255,255,.4);font-family:'JetBrains Mono',monospace;}
+.code-label{font-size:11px;color:rgba(255,255,255,.3);}
+.copy-btn{margin-left:auto;background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.5);font-size:11px;padding:3px 9px;border-radius:4px;cursor:pointer;font-family:'JetBrains Mono',monospace;transition:.15s;}
+.copy-btn:hover{background:rgba(255,255,255,.15);color:#fff;}
+pre{padding:16px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.7;color:var(--code-text);}
+.k{color:#C792EA;}  /* keyword */
+.s{color:#C3E88D;}  /* string */
+.c{color:#546E7A;font-style:italic;}  /* comment */
+.f{color:#82AAFF;}  /* function */
+.n{color:#F78C6C;}  /* number */
+.t{color:#FFCB6B;}  /* type/variable */
+.o{color:#89DDFF;}  /* operator */
+
+/* Inline code */
+code{font-family:'JetBrains Mono',monospace;font-size:12px;background:#F1F5F9;color:var(--teal);padding:2px 6px;border-radius:4px;}
+
+/* Tables */
+.data-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12.5px;}
+.data-table th{background:var(--teal);color:#fff;padding:9px 14px;text-align:left;font-weight:600;font-size:11.5px;}
+.data-table td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--text2);}
+.data-table tr:hover td{background:var(--teal-pale);}
+.data-table td code{background:transparent;color:var(--teal);}
+
+/* Architecture diagram */
+.arch-diagram{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;margin:16px 0;overflow-x:auto;}
+.arch-row{display:flex;align-items:center;justify-content:center;gap:12px;margin:8px 0;flex-wrap:wrap;}
+.arch-box{padding:10px 16px;border-radius:8px;font-size:12px;font-weight:600;text-align:center;min-width:100px;}
+.arch-box.client{background:var(--teal-pale);color:var(--teal);border:1.5px solid var(--teal);}
+.arch-box.api{background:var(--orange-pale);color:var(--orange);border:1.5px solid var(--orange);}
+.arch-box.db{background:#F5F3FF;color:var(--purple);border:1.5px solid var(--purple);}
+.arch-box.service{background:var(--green-pale);color:var(--green);border:1.5px solid var(--green);}
+.arch-box.ext{background:#FEF2F2;color:var(--red);border:1.5px solid var(--red);}
+.arch-box.queue{background:#FFFBEB;color:var(--amber);border:1.5px solid var(--amber);}
+.arch-arrow{font-size:18px;color:var(--muted);}
+
+/* File tree */
+.file-tree{background:var(--code-bg);border-radius:var(--r);padding:16px 20px;margin:12px 0;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.9;}
+.ft-dir{color:#FFCB6B;}
+.ft-file{color:#C3E88D;}
+.ft-comment{color:#546E7A;font-style:italic;}
+.ft-indent{display:inline-block;}
+
+/* Endpoint cards */
+.endpoint{border:1px solid var(--border);border-radius:var(--r-sm);margin:10px 0;overflow:hidden;}
+.ep-header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);cursor:pointer;}
+.ep-method{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;min-width:48px;text-align:center;}
+.ep-method.get{background:#DCFCE7;color:#15803D;}
+.ep-method.post{background:#DBEAFE;color:#1D4ED8;}
+.ep-method.patch{background:#FEF3C7;color:#92400E;}
+.ep-method.delete{background:#FEF2F2;color:var(--red);}
+.ep-path{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text);font-weight:500;}
+.ep-desc{font-size:12px;color:var(--muted);margin-left:auto;}
+.ep-body{padding:12px 14px;border-top:1px solid var(--border);display:none;}
+.ep-body.open{display:block;}
+.ep-tag{display:inline-block;background:var(--teal-pale);color:var(--teal);font-size:10.5px;font-weight:600;border-radius:4px;padding:2px 7px;margin-right:4px;}
+
+/* Steps */
+.steps{counter-reset:step;display:flex;flex-direction:column;gap:0;}
+.step{display:flex;gap:14px;padding:14px 0;position:relative;}
+.step::after{content:'';position:absolute;left:17px;top:44px;bottom:0;width:2px;background:var(--border);}
+.step:last-child::after{display:none;}
+.step-num{width:34px;height:34px;border-radius:50%;background:var(--teal);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:3px solid var(--bg);}
+.step-body{flex:1;padding-top:6px;}
+.step-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.step-text{font-size:13px;color:var(--text2);}
+
+/* Tag pills */
+.tag{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:600;margin:2px;}
+.tag.tech{background:var(--teal-pale);color:var(--teal);}
+.tag.db{background:#F5F3FF;color:var(--purple);}
+.tag.service{background:var(--green-pale);color:var(--green);}
+.tag.ext{background:var(--orange-pale);color:var(--orange);}
+.tag.optional{background:#F1F5F9;color:var(--muted);}
+
+/* Env var table */
+.env-table{font-family:'JetBrains Mono',monospace;font-size:11.5px;width:100%;border-collapse:collapse;margin:10px 0;}
+.env-table td{padding:7px 12px;border-bottom:1px solid var(--border);}
+.env-table td:first-child{color:var(--yellow);background:var(--code-bg);width:240px;}
+.env-table td:last-child{color:var(--code-text);background:var(--code-bg);}
+
+/* Schema */
+.schema-card{background:var(--code-bg);border-radius:var(--r);padding:16px;margin:10px 0;}
+.schema-name{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--yellow);margin-bottom:10px;}
+.schema-field{display:flex;gap:14px;padding:4px 0;font-family:'JetBrains Mono',monospace;font-size:12px;border-bottom:1px solid rgba(255,255,255,.05);}
+.schema-field:last-child{border-bottom:none;}
+.sf-name{color:#82AAFF;width:160px;flex-shrink:0;}
+.sf-type{color:#C792EA;width:100px;flex-shrink:0;}
+.sf-note{color:#546E7A;font-style:italic;}
+
+/* Progress indicator */
+.progress-strip{display:flex;gap:0;margin:20px 0;}
+.ps-item{flex:1;padding:10px 12px;text-align:center;font-size:11.5px;font-weight:600;border-right:1px solid var(--border);}
+.ps-item:last-child{border-right:none;}
+.ps-item.done{background:var(--green-pale);color:var(--green);}
+.ps-item.current{background:var(--teal-pale);color:var(--teal);}
+.ps-item.todo{background:var(--bg);color:var(--muted);}
+
+/* Prompt box */
+.prompt-box{background:linear-gradient(135deg,#1E293B,#0F2830);border:1.5px solid rgba(14,165,190,.3);border-radius:var(--r);padding:16px;margin:12px 0;}
+.prompt-label{font-size:10px;font-weight:700;color:var(--teal2);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.prompt-text{font-family:'JetBrains Mono',monospace;font-size:12px;color:#CBD5E1;line-height:1.7;}
+
+@media(max-width:768px){
+  .toc{display:none;}
+  .main{margin-left:0;max-width:100%;}
+  .content{padding:20px 16px 60px;}
+}
+</style>
+</head>
+<body>
+
+<!-- TOC SIDEBAR -->
+<nav class="toc">
+  <div class="toc-logo">
+    <div class="toc-logo-mark">🩺</div>
+    <div class="toc-logo-txt">Easy<b>Heals</b> <span style="font-size:9px;opacity:.4;">Tech Spec</span></div>
+  </div>
+  <div class="build-badge">
+    <div class="build-badge-title">🚀 Build Guide v1.0</div>
+    <div class="build-badge-text">Complete spec for EasyHeals AI Chat + CRM. Use with any AI coding tool.</div>
+  </div>
+  <div class="toc-section">Architecture</div>
+  <div class="toc-link" onclick="goto('overview')"><span class="toc-num">01</span>System Overview</div>
+  <div class="toc-link" onclick="goto('stack')"><span class="toc-num">02</span>Tech Stack</div>
+  <div class="toc-link" onclick="goto('structure')"><span class="toc-num">03</span>Folder Structure</div>
+  <div class="toc-section">Backend</div>
+  <div class="toc-link" onclick="goto('schema')"><span class="toc-num">04</span>Database Schema</div>
+  <div class="toc-link" onclick="goto('api')"><span class="toc-num">05</span>API Endpoints</div>
+  <div class="toc-link" onclick="goto('services')"><span class="toc-num">06</span>Backend Services</div>
+  <div class="toc-section">Frontend</div>
+  <div class="toc-link" onclick="goto('chat')"><span class="toc-num">07</span>Chat Module</div>
+  <div class="toc-link" onclick="goto('crm')"><span class="toc-num">08</span>CRM Module</div>
+  <div class="toc-section">Integrations</div>
+  <div class="toc-link" onclick="goto('ai')"><span class="toc-num">09</span>AI & Prescription</div>
+  <div class="toc-link" onclick="goto('whatsapp')"><span class="toc-num">10</span>WhatsApp Integration</div>
+  <div class="toc-link" onclick="goto('notifications')"><span class="toc-num">11</span>Notifications & Jobs</div>
+  <div class="toc-section">Deployment</div>
+  <div class="toc-link" onclick="goto('env')"><span class="toc-num">12</span>Environment Variables</div>
+  <div class="toc-link" onclick="goto('deploy')"><span class="toc-num">13</span>Deployment Guide</div>
+  <div class="toc-link" onclick="goto('prompts')"><span class="toc-num">14</span>AI Prompt Templates</div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="top-bar">
+    <div class="doc-title">EasyHeals — Technical Specification</div>
+    <div class="version-badge">v1.0</div>
+    <div style="font-size:12px;color:var(--muted);">Last updated: Feb 2026</div>
+    <div class="top-bar-right">
+      <button class="tb-btn ghost" onclick="window.print()">🖨️ Print</button>
+      <button class="tb-btn primary" onclick="copyAll()">📋 Copy All Prompts</button>
+    </div>
+  </div>
+  <div class="content">
+
+<!-- ══════════════════════════════════════════════════════
+  01. SYSTEM OVERVIEW
+══════════════════════════════════════════════════════ -->
+<div class="section" id="overview">
+  <div class="section-header">
+    <div class="section-num">01</div>
+    <div><div class="section-title">System Overview</div><div class="section-sub">What we're building and how the pieces connect</div></div>
+  </div>
+  <p>EasyHeals Consult is a two-part product: a <strong>Conversational AI Health Chat</strong> that lives at <code>easyheals.com/consult</code>, and a <strong>CRM Dashboard</strong> for internal health advisors to manage leads, follow-ups, appointments and WhatsApp outreach.</p>
+  <div class="arch-diagram">
+    <div style="text-align:center;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:16px;letter-spacing:.08em;">SYSTEM ARCHITECTURE</div>
+    <div class="arch-row">
+      <div class="arch-box client">🌐 Chat UI<br><span style="font-size:10px;opacity:.7;">easyheals.com/consult</span></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box api">⚡ REST API<br><span style="font-size:10px;opacity:.7;">Node.js / Express</span></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box db">🗄️ PostgreSQL<br><span style="font-size:10px;opacity:.7;">Leads + Appointments</span></div>
+    </div>
+    <div style="text-align:center;font-size:18px;color:var(--muted);margin:4px 0;">↕</div>
+    <div class="arch-row">
+      <div class="arch-box client">🖥️ CRM Dashboard<br><span style="font-size:10px;opacity:.7;">Internal Tool</span></div>
+      <div class="arch-arrow">←</div>
+      <div class="arch-box service">🤖 Claude API<br><span style="font-size:10px;opacity:.7;">Prescription AI</span></div>
+      <div class="arch-arrow">↔</div>
+      <div class="arch-box queue">⏱️ Job Queue<br><span style="font-size:10px;opacity:.7;">BullMQ / Redis</span></div>
+    </div>
+    <div style="text-align:center;font-size:18px;color:var(--muted);margin:4px 0;">↕</div>
+    <div class="arch-row">
+      <div class="arch-box ext">💬 WhatsApp<br><span style="font-size:10px;opacity:.7;">Meta Business API</span></div>
+      <div class="arch-arrow">↔</div>
+      <div class="arch-box ext">📞 Call / SMS<br><span style="font-size:10px;opacity:.7;">Exotel / Twilio</span></div>
+      <div class="arch-box ext">☁️ S3 Storage<br><span style="font-size:10px;opacity:.7;">Prescription Files</span></div>
+    </div>
+  </div>
+  <div class="callout info">
+    <div class="callout-icon">ℹ️</div>
+    <div class="callout-text"><strong>Zero impact on existing site.</strong> The entire system lives as a new subdomain <code>consult.easyheals.com</code> or a path <code>easyheals.com/consult</code>. No existing code is touched. The CRM is a separate internal app at <code>crm.easyheals.com</code>.</div>
+  </div>
+  <h3>Data Flow — Lead Capture to Conversion</h3>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">User opens Chat</div><div class="step-text">Conversational AI greets user. No login required. Language auto-detected from browser, or user picks manually.</div></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Symptoms collected via chat</div><div class="step-text">Free text + structured chip selections. Context stored in frontend state. No DB write yet.</div></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Contact details captured in-chat</div><div class="step-text">Bot asks Name → Phone → City → Preferred time. Each answer is validated inline before proceeding. On completion, <code>POST /api/leads</code> fires immediately.</div></div></div>
+    <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">Prescription upload (gated)</div><div class="step-text">Upload zone unlocks ONLY after lead is saved. File goes to S3. Claude API reads it and returns structured JSON. Summary shown in chat.</div></div></div>
+    <div class="step"><div class="step-num">5</div><div class="step-body"><div class="step-title">Lead appears in CRM instantly</div><div class="step-text">Health advisor sees new lead with status <strong>New</strong>, full symptom context, preferred callback time, and prescription summary if uploaded.</div></div></div>
+    <div class="step"><div class="step-num">6</div><div class="step-body"><div class="step-title">Automated WhatsApp welcome sent</div><div class="step-text">Job queue fires welcome message via Meta WhatsApp Business API within 30 seconds of lead creation.</div></div></div>
+    <div class="step"><div class="step-num">7</div><div class="step-body"><div class="step-title">Advisor calls, updates status</div><div class="step-text">CRM tracks call outcome, books appointment, logs notes. Follow-up reminders auto-scheduled via job queue.</div></div></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  02. TECH STACK
+══════════════════════════════════════════════════════ -->
+<div class="section" id="stack">
+  <div class="section-header">
+    <div class="section-num">02</div>
+    <div><div class="section-title">Tech Stack</div><div class="section-sub">Every library, framework and service you'll need</div></div>
+  </div>
+  <h3>Frontend</h3>
+  <p><span class="tag tech">React 18</span><span class="tag tech">Vite</span><span class="tag tech">Tailwind CSS</span><span class="tag tech">React Query</span><span class="tag tech">Zustand</span><span class="tag tech">React Router v6</span></p>
+  <table class="data-table">
+    <thead><tr><th>Library</th><th>Purpose</th><th>Install</th></tr></thead>
+    <tbody>
+      <tr><td><code>react</code> + <code>react-dom</code></td><td>UI framework</td><td><code>npm i react react-dom</code></td></tr>
+      <tr><td><code>@tanstack/react-query</code></td><td>Server state, auto-refetch</td><td><code>npm i @tanstack/react-query</code></td></tr>
+      <tr><td><code>zustand</code></td><td>Chat & UI local state</td><td><code>npm i zustand</code></td></tr>
+      <tr><td><code>react-router-dom</code></td><td>Routing (chat + crm)</td><td><code>npm i react-router-dom</code></td></tr>
+      <tr><td><code>axios</code></td><td>HTTP requests</td><td><code>npm i axios</code></td></tr>
+      <tr><td><code>react-hot-toast</code></td><td>Notifications</td><td><code>npm i react-hot-toast</code></td></tr>
+      <tr><td><code>date-fns</code></td><td>Date formatting</td><td><code>npm i date-fns</code></td></tr>
+      <tr><td><code>lucide-react</code></td><td>Icons</td><td><code>npm i lucide-react</code></td></tr>
+      <tr><td><code>@hello-pangea/dnd</code></td><td>Drag-drop pipeline (CRM)</td><td><code>npm i @hello-pangea/dnd</code></td></tr>
+      <tr><td><code>recharts</code></td><td>Analytics charts</td><td><code>npm i recharts</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Backend</h3>
+  <p><span class="tag tech">Node.js 20 LTS</span><span class="tag tech">Express 5</span><span class="tag db">PostgreSQL 16</span><span class="tag db">Redis 7</span><span class="tag tech">BullMQ</span></p>
+  <table class="data-table">
+    <thead><tr><th>Package</th><th>Purpose</th><th>Install</th></tr></thead>
+    <tbody>
+      <tr><td><code>express</code></td><td>HTTP server & routing</td><td><code>npm i express</code></td></tr>
+      <tr><td><code>pg</code> + <code>drizzle-orm</code></td><td>PostgreSQL ORM</td><td><code>npm i pg drizzle-orm</code></td></tr>
+      <tr><td><code>drizzle-kit</code></td><td>DB migrations</td><td><code>npm i -D drizzle-kit</code></td></tr>
+      <tr><td><code>ioredis</code></td><td>Redis client</td><td><code>npm i ioredis</code></td></tr>
+      <tr><td><code>bullmq</code></td><td>Job queue (WA, follow-ups)</td><td><code>npm i bullmq</code></td></tr>
+      <tr><td><code>@anthropic-ai/sdk</code></td><td>Claude API (prescription AI)</td><td><code>npm i @anthropic-ai/sdk</code></td></tr>
+      <tr><td><code>multer</code> + <code>@aws-sdk/client-s3</code></td><td>File upload → S3</td><td><code>npm i multer @aws-sdk/client-s3</code></td></tr>
+      <tr><td><code>zod</code></td><td>Input validation</td><td><code>npm i zod</code></td></tr>
+      <tr><td><code>jsonwebtoken</code></td><td>CRM auth (JWT)</td><td><code>npm i jsonwebtoken</code></td></tr>
+      <tr><td><code>bcryptjs</code></td><td>Password hashing</td><td><code>npm i bcryptjs</code></td></tr>
+      <tr><td><code>cors</code> + <code>helmet</code></td><td>Security middleware</td><td><code>npm i cors helmet</code></td></tr>
+      <tr><td><code>winston</code></td><td>Logging</td><td><code>npm i winston</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>External Services</h3>
+  <table class="data-table">
+    <thead><tr><th>Service</th><th>Used For</th><th>Tier / Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Anthropic Claude API</td><td>Prescription reading, chat responses</td><td>Pay-per-token (~₹0.5/analysis)</td></tr>
+      <tr><td>Meta WhatsApp Business API</td><td>WA messages (templates + replies)</td><td>Free tier: 1000 conversations/mo</td></tr>
+      <tr><td>AWS S3 (or Cloudflare R2)</td><td>Prescription file storage</td><td>~₹2/GB/month</td></tr>
+      <tr><td>Exotel (preferred in India)</td><td>Click-to-call, call logs</td><td>₹0.30/min approx</td></tr>
+      <tr><td>SendGrid (optional)</td><td>Email confirmations</td><td>Free tier: 100/day</td></tr>
+      <tr><td>Supabase (optional)</td><td>Hosted Postgres + Auth</td><td>Free tier available</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  03. FOLDER STRUCTURE
+══════════════════════════════════════════════════════ -->
+<div class="section" id="structure">
+  <div class="section-header">
+    <div class="section-num">03</div>
+    <div><div class="section-title">Folder Structure</div><div class="section-sub">Monorepo layout — frontend + backend in one repo</div></div>
+  </div>
+  <div class="file-tree">
+<span class="ft-dir">easyheals-consult/</span>
+├── <span class="ft-dir">apps/</span>
+│   ├── <span class="ft-dir">chat/</span>                    <span class="ft-comment"># Chat UI → easyheals.com/consult</span>
+│   │   ├── <span class="ft-dir">src/</span>
+│   │   │   ├── <span class="ft-dir">components/</span>
+│   │   │   │   ├── <span class="ft-file">ChatWindow.jsx</span>       <span class="ft-comment"># Main chat container</span>
+│   │   │   │   ├── <span class="ft-file">MessageBubble.jsx</span>    <span class="ft-comment"># Bot/user bubble</span>
+│   │   │   │   ├── <span class="ft-file">InlineInput.jsx</span>      <span class="ft-comment"># Name/phone input in chat</span>
+│   │   │   │   ├── <span class="ft-file">QuickChips.jsx</span>       <span class="ft-comment"># Chip answer buttons</span>
+│   │   │   │   ├── <span class="ft-file">PrescriptionUpload.jsx</span> <span class="ft-comment"># Gated upload zone</span>
+│   │   │   │   ├── <span class="ft-file">AnalysisCard.jsx</span>     <span class="ft-comment"># AI prescription summary</span>
+│   │   │   │   └── <span class="ft-file">LanguagePicker.jsx</span>   <span class="ft-comment"># Language switcher</span>
+│   │   │   ├── <span class="ft-dir">hooks/</span>
+│   │   │   │   ├── <span class="ft-file">useChatFlow.js</span>       <span class="ft-comment"># All conversation logic</span>
+│   │   │   │   ├── <span class="ft-file">useLeadCapture.js</span>    <span class="ft-comment"># Lead API calls</span>
+│   │   │   │   └── <span class="ft-file">usePrescription.js</span>   <span class="ft-comment"># Upload + AI analysis</span>
+│   │   │   ├── <span class="ft-dir">i18n/</span>
+│   │   │   │   ├── <span class="ft-file">en.json</span>              <span class="ft-comment"># English strings</span>
+│   │   │   │   ├── <span class="ft-file">hi.json</span>              <span class="ft-comment"># Hindi</span>
+│   │   │   │   ├── <span class="ft-file">mr.json</span>              <span class="ft-comment"># Marathi</span>
+│   │   │   │   ├── <span class="ft-file">bn.json</span>              <span class="ft-comment"># Bengali</span>
+│   │   │   │   ├── <span class="ft-file">ta.json</span>              <span class="ft-comment"># Tamil</span>
+│   │   │   │   └── <span class="ft-file">te.json</span>              <span class="ft-comment"># Telugu</span>
+│   │   │   ├── <span class="ft-dir">store/</span>
+│   │   │   │   └── <span class="ft-file">chatStore.js</span>         <span class="ft-comment"># Zustand: messages, leadData, step</span>
+│   │   │   └── <span class="ft-file">main.jsx</span>
+│   │
+│   └── <span class="ft-dir">crm/</span>                     <span class="ft-comment"># CRM → crm.easyheals.com</span>
+│       └── <span class="ft-dir">src/</span>
+│           ├── <span class="ft-dir">pages/</span>
+│           │   ├── <span class="ft-file">Dashboard.jsx</span>
+│           │   ├── <span class="ft-file">Leads.jsx</span>
+│           │   ├── <span class="ft-file">Pipeline.jsx</span>
+│           │   ├── <span class="ft-file">Appointments.jsx</span>
+│           │   ├── <span class="ft-file">WhatsApp.jsx</span>
+│           │   └── <span class="ft-file">Analytics.jsx</span>
+│           ├── <span class="ft-dir">components/</span>
+│           │   ├── <span class="ft-file">LeadTable.jsx</span>
+│           │   ├── <span class="ft-file">LeadDetailPanel.jsx</span>
+│           │   ├── <span class="ft-file">AppointmentModal.jsx</span>
+│           │   ├── <span class="ft-file">WhatsAppComposer.jsx</span>
+│           │   └── <span class="ft-file">ActivityTimeline.jsx</span>
+│           └── <span class="ft-file">main.jsx</span>
+│
+├── <span class="ft-dir">packages/</span>
+│   └── <span class="ft-dir">api/</span>                     <span class="ft-comment"># Express backend</span>
+│       ├── <span class="ft-dir">src/</span>
+│       │   ├── <span class="ft-dir">routes/</span>
+│       │   │   ├── <span class="ft-file">leads.js</span>             <span class="ft-comment"># CRUD for leads</span>
+│       │   │   ├── <span class="ft-file">prescriptions.js</span>    <span class="ft-comment"># Upload + AI analysis</span>
+│       │   │   ├── <span class="ft-file">appointments.js</span>     <span class="ft-comment"># Booking management</span>
+│       │   │   ├── <span class="ft-file">whatsapp.js</span>         <span class="ft-comment"># WA webhook + send</span>
+│       │   │   └── <span class="ft-file">auth.js</span>              <span class="ft-comment"># CRM login</span>
+│       │   ├── <span class="ft-dir">services/</span>
+│       │   │   ├── <span class="ft-file">prescriptionAI.js</span>   <span class="ft-comment"># Claude API integration</span>
+│       │   │   ├── <span class="ft-file">whatsappService.js</span>  <span class="ft-comment"># Meta API wrapper</span>
+│       │   │   ├── <span class="ft-file">storageService.js</span>   <span class="ft-comment"># S3 upload/download</span>
+│       │   │   └── <span class="ft-file">notificationService.js</span> <span class="ft-comment"># Email/SMS</span>
+│       │   ├── <span class="ft-dir">workers/</span>
+│       │   │   ├── <span class="ft-file">followUpWorker.js</span>   <span class="ft-comment"># Scheduled follow-up jobs</span>
+│       │   │   └── <span class="ft-file">waWorker.js</span>         <span class="ft-comment"># WhatsApp send queue</span>
+│       │   ├── <span class="ft-dir">db/</span>
+│       │   │   ├── <span class="ft-file">schema.js</span>            <span class="ft-comment"># Drizzle schema</span>
+│       │   │   └── <span class="ft-file">migrations/</span>
+│       │   └── <span class="ft-file">server.js</span>            <span class="ft-comment"># Entry point</span>
+│       └── <span class="ft-file">package.json</span>
+│
+├── <span class="ft-file">.env.example</span>
+├── <span class="ft-file">docker-compose.yml</span>          <span class="ft-comment"># Postgres + Redis</span>
+└── <span class="ft-file">package.json</span>                 <span class="ft-comment"># Monorepo root (npm workspaces)</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  04. DATABASE SCHEMA
+══════════════════════════════════════════════════════ -->
+<div class="section" id="schema">
+  <div class="section-header">
+    <div class="section-num">04</div>
+    <div><div class="section-title">Database Schema</div><div class="section-sub">PostgreSQL tables — using Drizzle ORM</div></div>
+  </div>
+
+  <h3>Table: <code>leads</code></h3>
+  <div class="schema-card">
+    <div class="schema-name">leads</div>
+    <div class="schema-field"><span class="sf-name">id</span><span class="sf-type">UUID PK</span><span class="sf-note">gen_random_uuid() default</span></div>
+    <div class="schema-field"><span class="sf-name">ref_id</span><span class="sf-type">VARCHAR(20)</span><span class="sf-note">Human-readable e.g. EH-100291 — unique</span></div>
+    <div class="schema-field"><span class="sf-name">name</span><span class="sf-type">VARCHAR(100)</span><span class="sf-note">NOT NULL</span></div>
+    <div class="schema-field"><span class="sf-name">phone</span><span class="sf-type">VARCHAR(15)</span><span class="sf-note">NOT NULL — 10-digit validated</span></div>
+    <div class="schema-field"><span class="sf-name">city</span><span class="sf-type">VARCHAR(100)</span><span class="sf-note"></span></div>
+    <div class="schema-field"><span class="sf-name">lang</span><span class="sf-type">VARCHAR(5)</span><span class="sf-note">en | hi | mr | bn | ta | te</span></div>
+    <div class="schema-field"><span class="sf-name">specialty_interest</span><span class="sf-type">VARCHAR(100)</span><span class="sf-note">e.g. Cardiology</span></div>
+    <div class="schema-field"><span class="sf-name">symptoms_text</span><span class="sf-type">TEXT</span><span class="sf-note">Free-text from conversation</span></div>
+    <div class="schema-field"><span class="sf-name">symptoms_json</span><span class="sf-type">JSONB</span><span class="sf-note">Structured: {onset, severity, history}</span></div>
+    <div class="schema-field"><span class="sf-name">status</span><span class="sf-type">ENUM</span><span class="sf-note">new | contacted | scheduled | converted | lost</span></div>
+    <div class="schema-field"><span class="sf-name">preferred_call_time</span><span class="sf-type">VARCHAR(50)</span><span class="sf-note">Morning / Afternoon / Evening / Anytime</span></div>
+    <div class="schema-field"><span class="sf-name">source</span><span class="sf-type">VARCHAR(30)</span><span class="sf-note">chat | organic | referral | campaign</span></div>
+    <div class="schema-field"><span class="sf-name">utm_params</span><span class="sf-type">JSONB</span><span class="sf-note">utm_source, utm_medium, utm_campaign</span></div>
+    <div class="schema-field"><span class="sf-name">assigned_to</span><span class="sf-type">UUID FK</span><span class="sf-note">→ users.id (health advisor)</span></div>
+    <div class="schema-field"><span class="sf-name">prescription_url</span><span class="sf-type">TEXT</span><span class="sf-note">S3 signed URL</span></div>
+    <div class="schema-field"><span class="sf-name">prescription_analysis</span><span class="sf-type">JSONB</span><span class="sf-note">AI output: {medications, diagnosis, warnings}</span></div>
+    <div class="schema-field"><span class="sf-name">wa_sent_at</span><span class="sf-type">TIMESTAMPTZ</span><span class="sf-note">When welcome WA was sent</span></div>
+    <div class="schema-field"><span class="sf-name">last_contacted_at</span><span class="sf-type">TIMESTAMPTZ</span><span class="sf-note"></span></div>
+    <div class="schema-field"><span class="sf-name">follow_up_at</span><span class="sf-type">TIMESTAMPTZ</span><span class="sf-note">Next scheduled follow-up</span></div>
+    <div class="schema-field"><span class="sf-name">notes</span><span class="sf-type">TEXT</span><span class="sf-note">Advisor internal notes</span></div>
+    <div class="schema-field"><span class="sf-name">created_at</span><span class="sf-type">TIMESTAMPTZ</span><span class="sf-note">DEFAULT now()</span></div>
+    <div class="schema-field"><span class="sf-name">updated_at</span><span class="sf-type">TIMESTAMPTZ</span><span class="sf-note">Auto-updated trigger</span></div>
+  </div>
+
+  <h3>Table: <code>appointments</code></h3>
+  <div class="schema-card">
+    <div class="schema-name">appointments</div>
+    <div class="schema-field"><span class="sf-name">id</span><span class="sf-type">UUID PK</span></div>
+    <div class="schema-field"><span class="sf-name">lead_id</span><span class="sf-type">UUID FK</span><span class="sf-note">→ leads.id</span></div>
+    <div class="schema-field"><span class="sf-name">hospital_name</span><span class="sf-type">VARCHAR(150)</span></div>
+    <div class="schema-field"><span class="sf-name">specialty</span><span class="sf-type">VARCHAR(100)</span></div>
+    <div class="schema-field"><span class="sf-name">doctor_name</span><span class="sf-type">VARCHAR(100)</span></div>
+    <div class="schema-field"><span class="sf-name">scheduled_at</span><span class="sf-type">TIMESTAMPTZ</span><span class="sf-note">NOT NULL</span></div>
+    <div class="schema-field"><span class="sf-name">status</span><span class="sf-type">ENUM</span><span class="sf-note">pending | confirmed | completed | cancelled | no_show</span></div>
+    <div class="schema-field"><span class="sf-name">wa_confirmation_sent</span><span class="sf-type">BOOLEAN</span></div>
+    <div class="schema-field"><span class="sf-name">notes</span><span class="sf-type">TEXT</span></div>
+    <div class="schema-field"><span class="sf-name">created_at</span><span class="sf-type">TIMESTAMPTZ</span></div>
+  </div>
+
+  <h3>Table: <code>activities</code></h3>
+  <div class="schema-card">
+    <div class="schema-name">activities</div>
+    <div class="schema-field"><span class="sf-name">id</span><span class="sf-type">UUID PK</span></div>
+    <div class="schema-field"><span class="sf-name">lead_id</span><span class="sf-type">UUID FK</span></div>
+    <div class="schema-field"><span class="sf-name">type</span><span class="sf-type">ENUM</span><span class="sf-note">lead_created | call_made | wa_sent | note_added | status_changed | appointment_booked | rx_uploaded</span></div>
+    <div class="schema-field"><span class="sf-name">description</span><span class="sf-type">TEXT</span></div>
+    <div class="schema-field"><span class="sf-name">metadata</span><span class="sf-type">JSONB</span><span class="sf-note">e.g. {old_status, new_status} or {wa_template}</span></div>
+    <div class="schema-field"><span class="sf-name">performed_by</span><span class="sf-type">UUID FK</span><span class="sf-note">→ users.id (null = system)</span></div>
+    <div class="schema-field"><span class="sf-name">created_at</span><span class="sf-type">TIMESTAMPTZ</span></div>
+  </div>
+
+  <h3>Table: <code>users</code> (CRM advisors)</h3>
+  <div class="schema-card">
+    <div class="schema-name">users</div>
+    <div class="schema-field"><span class="sf-name">id</span><span class="sf-type">UUID PK</span></div>
+    <div class="schema-field"><span class="sf-name">name</span><span class="sf-type">VARCHAR(100)</span></div>
+    <div class="schema-field"><span class="sf-name">email</span><span class="sf-type">VARCHAR(200)</span><span class="sf-note">UNIQUE</span></div>
+    <div class="schema-field"><span class="sf-name">password_hash</span><span class="sf-type">TEXT</span></div>
+    <div class="schema-field"><span class="sf-name">role</span><span class="sf-type">ENUM</span><span class="sf-note">admin | advisor | viewer</span></div>
+    <div class="schema-field"><span class="sf-name">phone</span><span class="sf-type">VARCHAR(15)</span></div>
+    <div class="schema-field"><span class="sf-name">is_active</span><span class="sf-type">BOOLEAN</span><span class="sf-note">DEFAULT true</span></div>
+    <div class="schema-field"><span class="sf-name">created_at</span><span class="sf-type">TIMESTAMPTZ</span></div>
+  </div>
+
+  <h3>Table: <code>wa_templates</code></h3>
+  <div class="schema-card">
+    <div class="schema-name">wa_templates</div>
+    <div class="schema-field"><span class="sf-name">id</span><span class="sf-type">UUID PK</span></div>
+    <div class="schema-field"><span class="sf-name">name</span><span class="sf-type">VARCHAR(100)</span><span class="sf-note">e.g. welcome_callback</span></div>
+    <div class="schema-field"><span class="sf-name">meta_template_id</span><span class="sf-type">VARCHAR(100)</span><span class="sf-note">Template name as registered on Meta</span></div>
+    <div class="schema-field"><span class="sf-name">body_text</span><span class="sf-type">TEXT</span><span class="sf-note">Preview with {{variable}} placeholders</span></div>
+    <div class="schema-field"><span class="sf-name">variables</span><span class="sf-type">JSONB</span><span class="sf-note">["name","phone","time"] — mapping keys</span></div>
+    <div class="schema-field"><span class="sf-name">trigger_on</span><span class="sf-type">VARCHAR(50)</span><span class="sf-note">lead_created | appointment_confirmed | follow_up</span></div>
+    <div class="schema-field"><span class="sf-name">is_active</span><span class="sf-type">BOOLEAN</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  05. API ENDPOINTS
+══════════════════════════════════════════════════════ -->
+<div class="section" id="api">
+  <div class="section-header">
+    <div class="section-num">05</div>
+    <div><div class="section-title">API Endpoints</div><div class="section-sub">Base URL: <code>https://api.easyheals.com/v1</code></div></div>
+  </div>
+
+  <h3>Leads</h3>
+  <div class="endpoint">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="ep-method post">POST</span><span class="ep-path">/leads</span><span class="ep-desc">Create new lead from chat</span>
+    </div>
+    <div class="ep-body">
+      <span class="ep-tag">Public</span><span class="ep-tag">Rate-limited: 5/min/IP</span>
+      <div class="code-wrap" style="margin-top:10px;"><div class="code-bar"><span class="code-lang">json</span><span class="code-label">Request Body</span></div>
+<pre>{
+  <span class="s">"name"</span>: <span class="s">"Priya Sharma"</span>,
+  <span class="s">"phone"</span>: <span class="s">"9876543210"</span>,
+  <span class="s">"city"</span>: <span class="s">"Pune"</span>,
+  <span class="s">"lang"</span>: <span class="s">"en"</span>,
+  <span class="s">"preferred_call_time"</span>: <span class="s">"Morning"</span>,
+  <span class="s">"specialty_interest"</span>: <span class="s">"Cardiology"</span>,
+  <span class="s">"symptoms_text"</span>: <span class="s">"Chest pain for 2 weeks"</span>,
+  <span class="s">"symptoms_json"</span>: { <span class="s">"onset"</span>: <span class="s">"2 weeks"</span>, <span class="s">"severity"</span>: <span class="n">7</span> },
+  <span class="s">"utm_params"</span>: { <span class="s">"utm_source"</span>: <span class="s">"google"</span> }
+}</pre></div>
+      <div class="code-wrap"><div class="code-bar"><span class="code-lang">json</span><span class="code-label">Response 201</span></div>
+<pre>{ <span class="s">"id"</span>: <span class="s">"uuid"</span>, <span class="s">"ref_id"</span>: <span class="s">"EH-100292"</span>, <span class="s">"status"</span>: <span class="s">"new"</span> }</pre></div>
+      <p style="font-size:12px;margin-top:6px;">Side effects: Creates activity log entry, queues WhatsApp welcome message.</p>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="ep-method get">GET</span><span class="ep-path">/leads</span><span class="ep-desc">List leads (CRM)</span>
+    </div>
+    <div class="ep-body">
+      <span class="ep-tag">Auth: Bearer JWT</span>
+      <div class="code-wrap" style="margin-top:10px;"><div class="code-bar"><span class="code-lang">text</span><span class="code-label">Query Params</span></div>
+<pre>?status=new&city=Pune&lang=hi&assigned_to=uuid
+&search=priya&page=1&limit=20&sort=created_at:desc</pre></div>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="ep-method patch">PATCH</span><span class="ep-path">/leads/:id</span><span class="ep-desc">Update status, notes, assigned advisor</span>
+    </div>
+    <div class="ep-body">
+      <span class="ep-tag">Auth: Bearer JWT</span>
+      <div class="code-wrap" style="margin-top:10px;"><div class="code-bar"><span class="code-lang">json</span><span class="code-label">Request Body (partial)</span></div>
+<pre>{ <span class="s">"status"</span>: <span class="s">"contacted"</span>, <span class="s">"notes"</span>: <span class="s">"Called, interested"</span>,
+  <span class="s">"follow_up_at"</span>: <span class="s">"2026-02-28T10:00:00Z"</span> }</pre></div>
+    </div>
+  </div>
+
+  <h3>Prescriptions</h3>
+  <div class="endpoint">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="ep-method post">POST</span><span class="ep-path">/prescriptions/upload</span><span class="ep-desc">Upload + AI analyse prescription</span>
+    </div>
+    <div class="ep-body">
+      <span class="ep-tag">Requires valid lead_id</span><span class="ep-tag">Multipart/form-data</span>
+      <div class="code-wrap" style="margin-top:10px;"><div class="code-bar"><span class="code-lang">js</span><span class="code-label">Form Data</span></div>
+<pre><span class="t">formData</span>.<span class="f">append</span>(<span class="s">'file'</span>, file)
+<span class="t">formData</span>.<span class="f">append</span>(<span class="s">'lead_id'</span>, <span class="s">'EH-100292'</span>)</pre></div>
+      <div class="code-wrap"><div class="code-bar"><span class="code-lang">json</span><span class="code-label">Response 200</span></div>
+<pre>{
+  <span class="s">"prescription_url"</span>: <span class="s">"https://s3.../rx/EH-100292.jpg"</span>,
+  <span class="s">"analysis"</span>: {
+    <span class="s">"diagnosis"</span>: <span class="s">"Type 2 Diabetes management"</span>,
+    <span class="s">"medications"</span>: [
+      { <span class="s">"name"</span>: <span class="s">"Metformin 500mg"</span>, <span class="s">"dosage"</span>: <span class="s">"Twice daily"</span>, <span class="s">"duration"</span>: <span class="s">"30 days"</span> }
+    ],
+    <span class="s">"warnings"</span>: [<span class="s">"Take with food to avoid nausea"</span>],
+    <span class="s">"recommended_specialist"</span>: <span class="s">"Endocrinologist"</span>
+  }
+}</pre></div>
+    </div>
+  </div>
+
+  <h3>Appointments</h3>
+  <div class="endpoint">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="ep-method post">POST</span><span class="ep-path">/appointments</span><span class="ep-desc">Book appointment for a lead</span>
+    </div>
+    <div class="ep-body">
+      <span class="ep-tag">Auth: Bearer JWT</span>
+      <div class="code-wrap" style="margin-top:10px;"><div class="code-bar"><span class="code-lang">json</span><span class="code-label">Request Body</span></div>
+<pre>{
+  <span class="s">"lead_id"</span>: <span class="s">"uuid"</span>,
+  <span class="s">"hospital_name"</span>: <span class="s">"Ruby Hall Clinic"</span>,
+  <span class="s">"specialty"</span>: <span class="s">"Cardiology"</span>,
+  <span class="s">"doctor_name"</span>: <span class="s">"Dr. Mehta"</span>,
+  <span class="s">"scheduled_at"</span>: <span class="s">"2026-02-28T10:00:00+05:30"</span>,
+  <span class="s">"send_wa_confirmation"</span>: <span class="k">true</span>
+}</pre></div>
+    </div>
+  </div>
+
+  <h3>WhatsApp</h3>
+  <div class="endpoint">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="ep-method post">POST</span><span class="ep-path">/whatsapp/send</span><span class="ep-desc">Send WA message to lead</span>
+    </div>
+    <div class="ep-body">
+      <span class="ep-tag">Auth: Bearer JWT</span>
+      <div class="code-wrap" style="margin-top:10px;"><div class="code-bar"><span class="code-lang">json</span></div>
+<pre>{
+  <span class="s">"lead_id"</span>: <span class="s">"uuid"</span>,
+  <span class="s">"template_id"</span>: <span class="s">"welcome_callback"</span>,
+  <span class="s">"variables"</span>: { <span class="s">"name"</span>: <span class="s">"Priya"</span>, <span class="s">"time"</span>: <span class="s">"Morning"</span> }
+}</pre></div>
+    </div>
+  </div>
+  <div class="endpoint">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="ep-method post">POST</span><span class="ep-path">/whatsapp/webhook</span><span class="ep-desc">Receive incoming WA messages from Meta</span>
+    </div>
+    <div class="ep-body">
+      <span class="ep-tag">Public — verify with Meta token</span>
+      <p style="font-size:12px;margin-top:6px;">Handles inbound replies from patients. Logs to activities table, triggers advisor notification.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  06. BACKEND SERVICES
+══════════════════════════════════════════════════════ -->
+<div class="section" id="services">
+  <div class="section-header">
+    <div class="section-num">06</div>
+    <div><div class="section-title">Backend Services</div><div class="section-sub">Core service layer implementation patterns</div></div>
+  </div>
+
+  <h3>Lead Service</h3>
+  <div class="code-wrap"><div class="code-bar"><span class="code-lang">js</span><span class="code-label">packages/api/src/services/leadService.js</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><span class="c">// Generate human-readable ref ID: EH-XXXXXX</span>
+<span class="k">async function</span> <span class="f">generateRefId</span>() {
+  <span class="k">const</span> <span class="t">last</span> = <span class="k">await</span> db.<span class="f">query</span>(<span class="s">'SELECT ref_id FROM leads ORDER BY created_at DESC LIMIT 1'</span>)
+  <span class="k">const</span> <span class="t">num</span> = <span class="t">last</span>.rows[<span class="n">0</span>] ? <span class="f">parseInt</span>(<span class="t">last</span>.rows[<span class="n">0</span>].ref_id.<span class="f">split</span>(<span class="s">'-'</span>)[<span class="n">1</span>]) + <span class="n">1</span> : <span class="n">100001</span>
+  <span class="k">return</span> <span class="s">`EH-<span class="t">${num}</span>`</span>
+}
+
+<span class="k">export async function</span> <span class="f">createLead</span>(<span class="t">data</span>) {
+  <span class="k">const</span> <span class="t">refId</span> = <span class="k">await</span> <span class="f">generateRefId</span>()
+  <span class="k">const</span> <span class="t">lead</span> = <span class="k">await</span> db.<span class="f">insert</span>(leads).<span class="f">values</span>({
+    ...<span class="t">data</span>, ref_id: <span class="t">refId</span>, status: <span class="s">'new'</span>
+  }).<span class="f">returning</span>()
+
+  <span class="c">// Fire-and-forget: WA welcome + activity log</span>
+  <span class="f">setImmediate</span>(<span class="k">async</span> () => {
+    <span class="k">await</span> <span class="f">logActivity</span>(<span class="t">lead</span>.id, <span class="s">'lead_created'</span>)
+    <span class="k">await</span> waQueue.<span class="f">add</span>(<span class="s">'send-welcome'</span>, { lead_id: <span class="t">lead</span>.id }, { delay: <span class="n">5000</span> })
+  })
+  <span class="k">return</span> <span class="t">lead</span>
+}</pre></div>
+
+  <h3>Follow-up Worker (BullMQ)</h3>
+  <div class="code-wrap"><div class="code-bar"><span class="code-lang">js</span><span class="code-label">packages/api/src/workers/followUpWorker.js</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><span class="k">import</span> { Worker, Queue } <span class="k">from</span> <span class="s">'bullmq'</span>
+
+<span class="k">export const</span> <span class="t">followUpQueue</span> = <span class="k">new</span> <span class="f">Queue</span>(<span class="s">'follow-ups'</span>, { connection: redis })
+
+<span class="c">// Schedule follow-up when lead is created</span>
+<span class="k">export async function</span> <span class="f">scheduleFollowUp</span>(<span class="t">leadId</span>, <span class="t">delayMs</span> = <span class="n">7200000</span>) { <span class="c">// 2 hours</span>
+  <span class="k">await</span> followUpQueue.<span class="f">add</span>(<span class="s">'check-lead'</span>, { leadId }, {
+    delay: <span class="t">delayMs</span>,
+    attempts: <span class="n">3</span>,
+    backoff: { type: <span class="s">'exponential'</span>, delay: <span class="n">300000</span> }
+  })
+}
+
+<span class="k">new</span> <span class="f">Worker</span>(<span class="s">'follow-ups'</span>, <span class="k">async</span> (<span class="t">job</span>) => {
+  <span class="k">const</span> <span class="t">lead</span> = <span class="k">await</span> <span class="f">getLead</span>(<span class="t">job</span>.data.leadId)
+  <span class="k">if</span> (<span class="t">lead</span>.status === <span class="s">'new'</span>) {
+    <span class="c">// Still not contacted — send WA nudge + notify advisor</span>
+    <span class="k">await</span> <span class="f">sendWhatsApp</span>(<span class="t">lead</span>, <span class="s">'follow_up_check_in'</span>)
+    <span class="k">await</span> <span class="f">notifyAdvisor</span>(<span class="t">lead</span>.<span class="t">assigned_to</span>, <span class="s">`Overdue: <span class="t">${lead.name}</span> hasn't been contacted`</span>)
+  }
+}, { connection: redis })</pre></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  07. CHAT MODULE
+══════════════════════════════════════════════════════ -->
+<div class="section" id="chat">
+  <div class="section-header">
+    <div class="section-num">07</div>
+    <div><div class="section-title">Chat Module</div><div class="section-sub">State machine & conversation flow</div></div>
+  </div>
+  <div class="callout tip">
+    <div class="callout-icon">💡</div>
+    <div class="callout-text"><strong>Key Design:</strong> The chat uses a simple state machine. <code>flowStep</code> is a number 0–N that determines which bot message to show next. Contact capture (steps 3–6) uses inline inputs directly in the chat. Prescription upload is gated — <code>rxZoneVisible</code> only becomes <code>true</code> after <code>leadSaved === true</code>.</div>
+  </div>
+  <h3>Zustand Store (chatStore.js)</h3>
+  <div class="code-wrap"><div class="code-bar"><span class="code-lang">js</span><span class="code-label">apps/chat/src/store/chatStore.js</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><span class="k">import</span> { create } <span class="k">from</span> <span class="s">'zustand'</span>
+
+<span class="k">export const</span> <span class="t">useChatStore</span> = <span class="f">create</span>((<span class="t">set</span>, <span class="t">get</span>) => ({
+  <span class="c">// State</span>
+  messages: [],
+  chips: [],
+  flowStep: <span class="n">0</span>,
+  lang: <span class="s">'en'</span>,
+  leadData: { name: <span class="s">''</span>, phone: <span class="s">''</span>, city: <span class="s">''</span>, time: <span class="s">''</span> },
+  leadSaved: <span class="k">false</span>,
+  leadId: <span class="k">null</span>,
+  rxZoneVisible: <span class="k">false</span>,
+  rxAnalysis: <span class="k">null</span>,
+  waitingFor: <span class="k">null</span>, <span class="c">// 'name'|'phone'|'city'|null</span>
+
+  <span class="c">// Actions</span>
+  <span class="f">addBotMessage</span>: (<span class="t">text</span>, <span class="t">chips</span> = []) => <span class="t">set</span>(<span class="t">s</span> => ({
+    messages: [...<span class="t">s</span>.messages, { role: <span class="s">'bot'</span>, text, id: <span class="f">Date</span>.<span class="f">now</span>() }],
+    chips
+  })),
+  <span class="f">addUserMessage</span>: (<span class="t">text</span>) => <span class="t">set</span>(<span class="t">s</span> => ({
+    messages: [...<span class="t">s</span>.messages, { role: <span class="s">'user'</span>, text, id: <span class="f">Date</span>.<span class="f">now</span>() }],
+    chips: []
+  })),
+  <span class="f">setLeadSaved</span>: (<span class="t">id</span>) => <span class="t">set</span>({ leadSaved: <span class="k">true</span>, leadId: <span class="t">id</span> }),
+  <span class="f">setRxAnalysis</span>: (<span class="t">data</span>) => <span class="t">set</span>({ rxAnalysis: <span class="t">data</span>, rxZoneVisible: <span class="k">false</span> }),
+}))</pre></div>
+
+  <h3>Phone Validation (inline input)</h3>
+  <div class="code-wrap"><div class="code-bar"><span class="code-lang">js</span><span class="code-label">apps/chat/src/components/InlineInput.jsx</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><span class="k">export function</span> <span class="f">InlineInput</span>({ type, placeholder, validate, onSubmit }) {
+  <span class="k">const</span> [val, setVal] = <span class="f">useState</span>(<span class="s">''</span>)
+  <span class="k">const</span> [error, setError] = <span class="f">useState</span>(<span class="k">null</span>)
+
+  <span class="k">const</span> <span class="f">handleSubmit</span> = () => {
+    <span class="k">const</span> err = validate?.(val)
+    <span class="k">if</span> (err) { <span class="f">setError</span>(err); <span class="k">return</span> }
+    <span class="f">onSubmit</span>(val)
+  }
+  <span class="k">return</span> (
+    &lt;<span class="t">div</span> className=<span class="s">"inline-input-wrap"</span>&gt;
+      &lt;<span class="t">input</span> type={type} value={val} onChange={<span class="t">e</span> => <span class="f">setVal</span>(<span class="t">e</span>.target.value)}
+        placeholder={placeholder} className={error ? <span class="s">'error'</span> : <span class="s">''</span>}
+        onKeyDown={<span class="t">e</span> => <span class="t">e</span>.key === <span class="s">'Enter'</span> &amp;&amp; <span class="f">handleSubmit</span>()} /&gt;
+      {error &amp;&amp; &lt;<span class="t">span</span> className=<span class="s">"error-hint"</span>&gt;{error}&lt;/<span class="t">span</span>&gt;}
+      &lt;<span class="t">button</span> onClick={handleSubmit}&gt;➤&lt;/<span class="t">button</span>&gt;
+    &lt;/<span class="t">div</span>&gt;
+  )
+}</pre></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  09. AI & PRESCRIPTION
+══════════════════════════════════════════════════════ -->
+<div class="section" id="ai">
+  <div class="section-header">
+    <div class="section-num">09</div>
+    <div><div class="section-title">AI & Prescription Reading</div><div class="section-sub">Claude API integration for prescription analysis</div></div>
+  </div>
+  <div class="callout warn">
+    <div class="callout-icon">⚠️</div>
+    <div class="callout-text"><strong>Medical Disclaimer is mandatory.</strong> All AI outputs must display: "This is an AI-assisted summary for informational purposes only. It does not constitute medical advice." This must appear in the UI, be logged in the DB, and be included in any WA/email communication.</div>
+  </div>
+  <h3>Prescription Analysis Service</h3>
+  <div class="code-wrap"><div class="code-bar"><span class="code-lang">js</span><span class="code-label">packages/api/src/services/prescriptionAI.js</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><span class="k">import</span> Anthropic <span class="k">from</span> <span class="s">'@anthropic-ai/sdk'</span>
+<span class="k">import</span> { <span class="t">getSignedUrl</span> } <span class="k">from</span> <span class="s">'./storageService.js'</span>
+
+<span class="k">const</span> <span class="t">client</span> = <span class="k">new</span> <span class="f">Anthropic</span>()
+
+<span class="k">export async function</span> <span class="f">analysePrescription</span>(<span class="t">fileBuffer</span>, <span class="t">mimeType</span>) {
+  <span class="k">const</span> <span class="t">base64</span> = <span class="t">fileBuffer</span>.<span class="f">toString</span>(<span class="s">'base64'</span>)
+
+  <span class="k">const</span> <span class="t">response</span> = <span class="k">await</span> client.messages.<span class="f">create</span>({
+    model: <span class="s">'claude-opus-4-6'</span>,
+    max_tokens: <span class="n">1024</span>,
+    messages: [{
+      role: <span class="s">'user'</span>,
+      content: [
+        { type: <span class="s">'image'</span>,
+          source: { type: <span class="s">'base64'</span>, media_type: <span class="t">mimeType</span>, data: <span class="t">base64</span> }},
+        { type: <span class="s">'text'</span>, text: PRESCRIPTION_PROMPT }
+      ]
+    }]
+  })
+
+  <span class="k">const</span> <span class="t">text</span> = response.content[<span class="n">0</span>].text
+  <span class="c">// Claude returns JSON — strip any markdown fences</span>
+  <span class="k">const</span> <span class="t">json</span> = <span class="t">text</span>.<span class="f">replace</span>(<span class="t">/```json|```/g</span>, <span class="s">''</span>).<span class="f">trim</span>()
+  <span class="k">return</span> <span class="f">JSON</span>.<span class="f">parse</span>(<span class="t">json</span>)
+}
+
+<span class="k">const</span> PRESCRIPTION_PROMPT = <span class="s">`
+You are a medical document analyser for EasyHeals, an Indian healthcare platform.
+Analyse this prescription image and return ONLY a JSON object (no markdown) with:
+{
+  "medications": [
+    { "name": string, "dosage": string, "frequency": string, "duration": string }
+  ],
+  "likely_condition": string,
+  "doctor_name": string | null,
+  "date": string | null,
+  "warnings": [string],
+  "recommended_specialist": string,
+  "language": "English" | "Hindi" | "Mixed",
+  "confidence": "high" | "medium" | "low",
+  "disclaimer": "AI-assisted summary only. Not medical advice."
+}
+If the image is not a prescription, return { "error": "not_a_prescription" }.
+`</span></pre></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  10. WHATSAPP INTEGRATION
+══════════════════════════════════════════════════════ -->
+<div class="section" id="whatsapp">
+  <div class="section-header">
+    <div class="section-num">10</div>
+    <div><div class="section-title">WhatsApp Integration</div><div class="section-sub">Meta Business Cloud API — templates + inbound handling</div></div>
+  </div>
+  <div class="steps">
+    <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">Create Meta Business Account</div><div class="step-text">Go to <code>developers.facebook.com</code> → Create App → WhatsApp Business API → Get <code>PHONE_NUMBER_ID</code> and <code>WABA_ID</code>.</div></div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">Register Message Templates</div><div class="step-text">Submit 5 templates (welcome, appointment_confirm, follow_up, rx_reminder, lab_reminder) in Meta Business Manager. Approval takes 24–48 hrs.</div></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">Set up Webhook</div><div class="step-text">Point Meta webhook to <code>POST /api/v1/whatsapp/webhook</code>. Verify with <code>WHATSAPP_WEBHOOK_VERIFY_TOKEN</code>.</div></div></div>
+  </div>
+  <h3>WA Service</h3>
+  <div class="code-wrap"><div class="code-bar"><span class="code-lang">js</span><span class="code-label">packages/api/src/services/whatsappService.js</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><span class="k">export async function</span> <span class="f">sendTemplate</span>(<span class="t">phone</span>, <span class="t">templateName</span>, <span class="t">variables</span>) {
+  <span class="k">const</span> <span class="t">res</span> = <span class="k">await</span> <span class="f">fetch</span>(
+    <span class="s">`https://graph.facebook.com/v18.0/<span class="t">${process.env.WA_PHONE_NUMBER_ID}</span>/messages`</span>,
+    {
+      method: <span class="s">'POST'</span>,
+      headers: {
+        <span class="s">'Authorization'</span>: <span class="s">`Bearer <span class="t">${process.env.WA_ACCESS_TOKEN}</span>`</span>,
+        <span class="s">'Content-Type'</span>: <span class="s">'application/json'</span>
+      },
+      body: <span class="f">JSON</span>.<span class="f">stringify</span>({
+        messaging_product: <span class="s">'whatsapp'</span>,
+        to: <span class="s">`91<span class="t">${phone}</span>`</span>, <span class="c">// India prefix</span>
+        type: <span class="s">'template'</span>,
+        template: {
+          name: <span class="t">templateName</span>,
+          language: { code: <span class="s">'en_IN'</span> },
+          components: [{
+            type: <span class="s">'body'</span>,
+            parameters: <span class="f">Object</span>.<span class="f">entries</span>(<span class="t">variables</span>).<span class="f">map</span>(([<span class="t">_</span>, <span class="t">v</span>]) => ({
+              type: <span class="s">'text'</span>, text: <span class="t">v</span>
+            }))
+          }]
+        }
+      })
+    }
+  )
+  <span class="k">if</span> (!<span class="t">res</span>.ok) <span class="k">throw new</span> <span class="f">Error</span>(<span class="k">await</span> <span class="t">res</span>.<span class="f">text</span>())
+  <span class="k">return</span> <span class="k">await</span> <span class="t">res</span>.<span class="f">json</span>()
+}</pre></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  12. ENVIRONMENT VARIABLES
+══════════════════════════════════════════════════════ -->
+<div class="section" id="env">
+  <div class="section-header">
+    <div class="section-num">12</div>
+    <div><div class="section-title">Environment Variables</div><div class="section-sub">Complete <code>.env</code> reference</div></div>
+  </div>
+  <table class="env-table">
+    <tr><td>DATABASE_URL</td><td>postgresql://user:pass@host:5432/easyheals</td></tr>
+    <tr><td>REDIS_URL</td><td>redis://localhost:6379</td></tr>
+    <tr><td>JWT_SECRET</td><td>min 32 chars random string</td></tr>
+    <tr><td>ANTHROPIC_API_KEY</td><td>sk-ant-...</td></tr>
+    <tr><td>WA_ACCESS_TOKEN</td><td>From Meta App Dashboard</td></tr>
+    <tr><td>WA_PHONE_NUMBER_ID</td><td>From Meta WhatsApp Setup</td></tr>
+    <tr><td>WA_WEBHOOK_VERIFY_TOKEN</td><td>Any random string you choose</td></tr>
+    <tr><td>AWS_ACCESS_KEY_ID</td><td>For S3 prescription storage</td></tr>
+    <tr><td>AWS_SECRET_ACCESS_KEY</td><td></td></tr>
+    <tr><td>AWS_S3_BUCKET</td><td>easyheals-prescriptions</td></tr>
+    <tr><td>AWS_REGION</td><td>ap-south-1 (Mumbai)</td></tr>
+    <tr><td>CORS_ORIGIN</td><td>https://easyheals.com,https://crm.easyheals.com</td></tr>
+    <tr><td>EXOTEL_SID</td><td>For click-to-call (optional)</td></tr>
+    <tr><td>EXOTEL_TOKEN</td><td></td></tr>
+    <tr><td>SENDGRID_API_KEY</td><td>For email confirmations (optional)</td></tr>
+    <tr><td>PORT</td><td>3000</td></tr>
+    <tr><td>NODE_ENV</td><td>production</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  13. DEPLOYMENT
+══════════════════════════════════════════════════════ -->
+<div class="section" id="deploy">
+  <div class="section-header">
+    <div class="section-num">13</div>
+    <div><div class="section-title">Deployment Guide</div><div class="section-sub">Recommended stack for Indian traffic</div></div>
+  </div>
+  <h3>Recommended: Railway.app or Render.com (Fast to start)</h3>
+  <div class="code-wrap"><div class="code-bar"><span class="code-lang">yaml</span><span class="code-label">docker-compose.yml (local dev)</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+<pre><span class="t">version</span>: <span class="s">'3.9'</span>
+<span class="t">services</span>:
+  <span class="t">postgres</span>:
+    <span class="t">image</span>: postgres:<span class="n">16</span>
+    <span class="t">environment</span>:
+      POSTGRES_DB: easyheals
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: devpassword
+    <span class="t">ports</span>: [<span class="s">"5432:5432"</span>]
+    <span class="t">volumes</span>: [pgdata:/var/lib/postgresql/data]
+
+  <span class="t">redis</span>:
+    <span class="t">image</span>: redis:<span class="n">7</span>-alpine
+    <span class="t">ports</span>: [<span class="s">"6379:6379"</span>]
+
+<span class="t">volumes</span>:
+  <span class="t">pgdata</span>:</pre></div>
+
+  <h3>DNS Setup</h3>
+  <table class="data-table">
+    <thead><tr><th>Subdomain</th><th>Points to</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>easyheals.com/consult</code></td><td>Chat app (Vercel / Netlify)</td><td>Patient-facing chat</td></tr>
+      <tr><td><code>crm.easyheals.com</code></td><td>CRM app (same host)</td><td>Internal advisor tool</td></tr>
+      <tr><td><code>api.easyheals.com</code></td><td>Express API (Railway / Render)</td><td>Backend API</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+  14. AI PROMPT TEMPLATES
+══════════════════════════════════════════════════════ -->
+<div class="section" id="prompts">
+  <div class="section-header">
+    <div class="section-num">14</div>
+    <div><div class="section-title">AI Prompt Templates</div><div class="section-sub">Copy-paste prompts for building with any AI coding tool</div></div>
+  </div>
+  <div class="callout tip">
+    <div class="callout-icon">🚀</div>
+    <div class="callout-text"><strong>For Google Antigravity / any AI IDE:</strong> Use these prompts in sequence. Each prompt assumes the previous step is complete. Start from Prompt 1 and work down.</div>
+  </div>
+
+  <h3>Prompt 1 — Project Scaffold</h3>
+  <div class="prompt-box">
+    <div class="prompt-label">🤖 Paste this into your AI coding tool</div>
+    <div class="prompt-text">Create a Node.js monorepo called "easyheals-consult" using npm workspaces with two apps: apps/chat (React + Vite) and apps/crm (React + Vite), and one package: packages/api (Node.js + Express). Set up Tailwind CSS in both React apps. Add a docker-compose.yml with PostgreSQL 16 and Redis 7. Create .env.example with all variables from the spec. Use ES modules (type: module) throughout. Add a root package.json with scripts: dev (runs all apps concurrently), build, and migrate.</div>
+  </div>
+
+  <h3>Prompt 2 — Database & API Server</h3>
+  <div class="prompt-box">
+    <div class="prompt-label">🤖 Paste this into your AI coding tool</div>
+    <div class="prompt-text">In packages/api, set up Drizzle ORM with PostgreSQL. Create these tables: leads (id UUID PK, ref_id VARCHAR unique, name, phone, city, lang, specialty_interest, symptoms_text, symptoms_json JSONB, status ENUM(new/contacted/scheduled/converted/lost), preferred_call_time, source, utm_params JSONB, assigned_to UUID FK, prescription_url TEXT, prescription_analysis JSONB, wa_sent_at, last_contacted_at, follow_up_at, notes TEXT, created_at, updated_at), appointments (id, lead_id FK, hospital_name, specialty, doctor_name, scheduled_at, status ENUM, wa_confirmation_sent bool, notes, created_at), activities (id, lead_id FK, type ENUM, description, metadata JSONB, performed_by UUID FK, created_at), users (id, name, email UNIQUE, password_hash, role ENUM(admin/advisor/viewer), phone, is_active, created_at), wa_templates (id, name, meta_template_id, body_text, variables JSONB, trigger_on, is_active). Add Drizzle migrations. Create Express server with CORS, helmet, express.json middleware. Add JWT authentication middleware for CRM routes.</div>
+  </div>
+
+  <h3>Prompt 3 — Lead Capture API</h3>
+  <div class="prompt-box">
+    <div class="prompt-label">🤖 Paste this into your AI coding tool</div>
+    <div class="prompt-text">Create the leads router in packages/api/src/routes/leads.js with: POST /leads (public, rate-limited 5/min/IP using express-rate-limit, validates with Zod: name required, phone must be 10 digits, creates lead with auto-incremented ref_id starting EH-100001, logs activity 'lead_created', queues WhatsApp welcome via BullMQ with 5 second delay, returns {id, ref_id, status}), GET /leads (auth required, supports query params: status, city, lang, search, assigned_to, page, limit, sort), GET /leads/:id (auth, returns full lead with activities), PATCH /leads/:id (auth, partial update, logs status change activity if status changes), GET /leads/followups (auth, returns leads with status new or contacted ordered by created_at, overdue first).</div>
+  </div>
+
+  <h3>Prompt 4 — Prescription Upload + Claude AI</h3>
+  <div class="prompt-box">
+    <div class="prompt-label">🤖 Paste this into your AI coding tool</div>
+    <div class="prompt-text">Create prescription upload service. In packages/api/src/routes/prescriptions.js: POST /prescriptions/upload accepts multipart/form-data with 'file' (image/* or pdf, max 10MB) and 'lead_id'. Validates lead_id exists in DB. Uploads file to AWS S3 bucket using @aws-sdk/client-s3 with key format prescriptions/{lead_id}/{timestamp}.{ext}. Then calls Anthropic Claude API (claude-opus-4-6) with the image as base64 and this system prompt: "You are a medical document analyser for EasyHeals. Analyse the prescription image and return ONLY a JSON object (no markdown) with: medications (array of {name, dosage, frequency, duration}), likely_condition (string), doctor_name (string or null), date (string or null), warnings (array of strings), recommended_specialist (string), confidence (high/medium/low), disclaimer (always: AI-assisted summary only. Not medical advice.). If not a prescription return {error: not_a_prescription}." Save the S3 URL and parsed JSON analysis to leads table. Log activity 'rx_uploaded'. Return the analysis JSON to frontend.</div>
+  </div>
+
+  <h3>Prompt 5 — WhatsApp Service + Job Queue</h3>
+  <div class="prompt-box">
+    <div class="prompt-label">🤖 Paste this into your AI coding tool</div>
+    <div class="prompt-text">Set up BullMQ with Redis. Create two queues: 'wa-messages' and 'follow-ups'. In packages/api/src/services/whatsappService.js create sendTemplate(phone, templateName, variables) that calls Meta WhatsApp Business Cloud API v18.0 using WA_ACCESS_TOKEN and WA_PHONE_NUMBER_ID env vars, prefixes phone with 91 for India. Create waWorker that processes wa-messages queue: reads template from DB, substitutes variables, sends via Meta API, logs wa_sent_at on lead. Create followUpWorker that processes follow-ups queue: if lead.status is still 'new' after delay, sends follow_up_check_in WA template and logs activity. In POST /leads route, after saving lead, add job to wa-messages queue with delay 5000ms for welcome_callback template, and add job to follow-ups queue with delay 7200000ms (2 hours). Create POST /whatsapp/webhook route that handles Meta webhook verification (GET with hub.verify_token) and inbound messages (POST), logs inbound replies to activities table.</div>
+  </div>
+
+  <h3>Prompt 6 — Chat UI (React)</h3>
+  <div class="prompt-box">
+    <div class="prompt-label">🤖 Paste this into your AI coding tool</div>
+    <div class="prompt-text">Build the chat UI in apps/chat/src. Create a Zustand store (chatStore.js) with state: messages[], chips[], flowStep (0-7), lang ('en'), leadData {name,phone,city,time}, leadSaved bool, leadId string, rxZoneVisible bool, rxAnalysis object, waitingFor ('name'|'phone'|'city'|null). Create i18n JSON files for en/hi/mr/bn/ta/te with strings for each conversation step. Create useChatFlow hook that implements this flow: step 0 = welcome + chips, step 1 = describe symptoms + chips, step 2 = history + chips, step 3 = ask name (inline input in chat), step 4 = ask phone (inline input, validate 10 digits), step 5 = ask city (inline input), step 6 = ask preferred call time (chips), step 7 = after lead saved, show rx upload prompt. After step 6, call POST /api/leads with collected data. On success, set leadSaved=true, show rxZoneVisible. Create ChatWindow component showing messages, typing indicator, chips, and inline inputs. Create PrescriptionUpload component (hidden until leadSaved=true) that calls POST /api/prescriptions/upload and shows AnalysisCard with medications table and warnings. All text uses i18n strings based on selected language. Include medical disclaimer text below every bot message.</div>
+  </div>
+
+  <h3>Prompt 7 — CRM Dashboard</h3>
+  <div class="prompt-box">
+    <div class="prompt-label">🤖 Paste this into your AI coding tool</div>
+    <div class="prompt-text">Build the CRM in apps/crm/src. Use React Router with these routes: /login, /dashboard, /leads, /pipeline, /appointments, /whatsapp, /analytics. Create a dark sidebar nav. Dashboard shows 4 stat cards (total leads, conversions, pending follow-ups, appointments). Leads page has a table with columns: Lead (name+phone+city), Specialty, Status badge, Language flag, Source, Actions (call/WA/book). Use React Query to fetch from GET /api/leads with filter params. Clicking a row opens a detail panel on the right showing: lead info grid, symptoms text, prescription analysis card (if rx_uploaded), status dropdown (calls PATCH /api/leads/:id on change), activity timeline, book appointment button. Pipeline page shows Kanban columns for each status. Appointments page shows calendar + table. WhatsApp page shows template selector + send to segment. All data mutations use React Query mutations with optimistic updates. JWT stored in localStorage, sent as Authorization: Bearer header. Protected routes redirect to /login if no token.</div>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-icon">📋</div>
+    <div class="callout-text"><strong>Build sequence:</strong> Prompt 1 → 2 → 3 → 5 → 4 → 6 → 7. Test each step with Postman/curl before moving to the next. Use <code>docker-compose up</code> for local Postgres + Redis.</div>
+  </div>
+</div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+function goto(id){document.getElementById(id)?.scrollIntoView({behavior:'smooth'});document.querySelectorAll('.toc-link').forEach(l=>l.classList.remove('active'));event.target.closest('.toc-link')?.classList.add('active');}
+function toggleEp(h){const b=h.nextElementSibling;b.classList.toggle('open');}
+function copyCode(btn){
+  const code=btn.closest('.code-wrap').querySelector('pre').innerText;
+  navigator.clipboard.writeText(code).then(()=>{btn.textContent='✓ copied';setTimeout(()=>btn.textContent='copy',2000);});
+}
+function copyAll(){
+  const prompts=[...document.querySelectorAll('.prompt-text')].map(p=>p.textContent).join('\n\n---\n\n');
+  navigator.clipboard.writeText(prompts).then(()=>{
+    const b=document.querySelector('.tb-btn.primary');b.textContent='✓ Copied All!';setTimeout(()=>b.textContent='📋 Copy All Prompts',2000);
+  });
+}
+// Highlight active section on scroll
+const sections=document.querySelectorAll('.section');
+const observer=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){const id=e.target.id;document.querySelectorAll('.toc-link').forEach(l=>l.classList.remove('active'));const active=document.querySelector(`.toc-link[onclick*="${id}"]`);if(active)active.classList.add('active');}});},{threshold:0.2});
+sections.forEach(s=>observer.observe(s));
+</script>
+</body>
+</html>

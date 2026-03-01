@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+/* ─── EasyHeals Brand Tokens ─── */
+@theme {
+  --color-primary: #E84520;
+  --color-primary-dark: #C73A1A;
+  --color-primary-pale: #FEF0EC;
+  --color-green: #22A45D;
+  --color-green-dark: #1A8049;
+  --color-green-pale: #EDFAF3;
+  --color-amber: #D97706;
+  --color-amber-pale: #FFFBEB;
+  --color-bg: #F7F9FA;
+  --color-card: #FFFFFF;
+  --color-border: #E2E9EF;
+  --color-text: #1A1A2E;
+  --color-text2: #4A5568;
+  --color-muted: #94A3B8;
+  --font-jakarta: "Plus Jakarta Sans", sans-serif;
+  --font-lora: "Lora", serif;
+}
+
+:root {
+  --primary: #E84520;
+  --primary-dark: #C73A1A;
+  --primary-pale: #FEF0EC;
+  --green: #22A45D;
+  --green-dark: #1A8049;
+  --green-pale: #EDFAF3;
+  --amber: #D97706;
+  --amber-pale: #FFFBEB;
+  --bg: #F7F9FA;
+  --card: #FFFFFF;
+  --border: #E2E9EF;
+  --text: #1A1A2E;
+  --text2: #4A5568;
+  --muted: #94A3B8;
+  --shadow: 0 2px 16px rgba(232, 69, 32, 0.08);
+  --shadow-md: 0 6px 32px rgba(0, 0, 0, 0.10);
+  --r: 18px;
+  --r-sm: 10px;
+  --r-xs: 7px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* Animations */
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.6); opacity: 0.5; }
+}
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+}
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Chat message bubbles */
+.bubble-bot {
+  background: #F0F6FA;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  border-bottom-left-radius: 3px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text);
+  animation: msgIn 0.25s ease;
+}
+.bubble-user {
+  background: var(--primary);
+  color: #fff;
+  border-radius: 14px;
+  border-bottom-right-radius: 3px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  animation: msgIn 0.25s ease;
+}
+
+/* Chips */
+.chip {
+  padding: 6px 14px;
+  border-radius: 100px;
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+  background: #fff;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.chip:hover, .chip.sel {
+  background: var(--primary);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.chip.green {
+  border-color: var(--green);
+  color: var(--green);
+}
+.chip.green:hover, .chip.green.sel {
+  background: var(--green);
+  color: #fff;
+}
+
+/* Inline input */
+.inline-input {
+  flex: 1;
+  padding: 9px 13px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: #fff;
+  transition: all 0.2s;
+  outline: none;
+}
+.inline-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(232,69,32,0.1); }
+.inline-input.error { border-color: #DC2626; }
+
+/* Typing dots */
+.td {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: bounce 1s ease-in-out infinite;
+}
+.td:nth-child(2) { animation-delay: 0.15s; }
+.td:nth-child(3) { animation-delay: 0.3s; }
+
+/* Pulse dot */
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  background: #6EF4C8;
+  border-radius: 50%;
+  animation: pulse 1.4s infinite;
+  display: inline-block;
+}
