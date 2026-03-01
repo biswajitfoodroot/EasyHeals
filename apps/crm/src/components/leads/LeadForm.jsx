@@ -6,6 +6,7 @@ import SearchableSelect from '../ui/SearchableSelect';
 import Modal from '../ui/Modal';
 import { Save, X, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../../lib/utils';
 
 export default function LeadForm({ isOpen, onClose, editLead = null }) {
     const queryClient = useQueryClient();
@@ -72,8 +73,7 @@ export default function LeadForm({ isOpen, onClose, editLead = null }) {
             onClose();
         },
         onError: (err) => {
-            const msg = err.response?.data?.message || err.response?.data?.error || 'Failed to save';
-            toast.error(msg);
+            toast.error(getErrorMessage(err, 'Failed to save'));
         },
     });
 

@@ -145,3 +145,27 @@ export function debounce(fn, delay = 300) {
         timer = setTimeout(() => fn(...args), delay);
     };
 }
+
+/**
+ * Safely extract a string error message from an Axios error or any error object.
+ * Prevents React error #31 by ensuring toast.error() always receives a string.
+ * @param {*} err - The error object (typically from Axios catch)
+ * @param {string} fallback - Default message if extraction fails
+ * @returns {string}
+ */
+export function getErrorMessage(err, fallback = 'Something went wrong') {
+    // Try err.response.data.error first (our API convention)
+    const apiError = err?.response?.data?.error;
+    if (typeof apiError === 'string') return apiError;
+    // If apiError is an object (e.g. DB error {code, message}), extract message
+    if (apiError && typeof apiError === 'object') return apiError.message || fallback;
+
+    // Try err.response.data.message
+    const apiMessage = err?.response?.data?.message;
+    if (typeof apiMessage === 'string') return apiMessage;
+
+    // Try err.message (Axios network errors)
+    if (typeof err?.message === 'string') return err.message;
+
+    return fallback;
+}

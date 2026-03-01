@@ -4,7 +4,7 @@ import api from '../lib/api';
 import Modal from '../components/ui/Modal';
 import SearchableSelect from '../components/ui/SearchableSelect';
 import { INVOICE_STATUSES, CURRENCIES } from '../lib/constants';
-import { formatCurrency, formatDate, timeAgo } from '../lib/utils';
+import { formatCurrency, formatDate, timeAgo, getErrorMessage } from '../lib/utils';
 import { Plus, FileText, DollarSign, Download, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -136,7 +136,7 @@ function InvoiceFormModal({ onClose }) {
     const mutation = useMutation({
         mutationFn: (data) => api.post('/invoices', data),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['invoices'] }); toast.success('Invoice created'); onClose(); },
-        onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
     });
 
     const update = (k, v) => setForm(f => ({ ...f, [k]: v }));

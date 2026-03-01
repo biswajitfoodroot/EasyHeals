@@ -6,6 +6,7 @@ import PhoneLink from '../components/ui/PhoneLink';
 import { COUNTRY_CODES } from '../lib/constants';
 import { Plus, Search, Edit3, Trash2, Briefcase, X, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../lib/utils';
 
 export default function Agents() {
     const queryClient = useQueryClient();
@@ -125,7 +126,7 @@ function AgentFormModal({ agent, onClose }) {
     const mutation = useMutation({
         mutationFn: (data) => isEdit ? api.patch(`/agents/${agent.id}`, data) : api.post('/agents', data),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['agents'] }); toast.success(isEdit ? 'Updated' : 'Created'); onClose(); },
-        onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
     });
 
     const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -225,7 +226,7 @@ function AgentPortalModal({ agent, onClose }) {
             queryClient.invalidateQueries({ queryKey: ['agents'] });
             onClose();
         },
-        onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
     });
 
     const handleAction = () => {

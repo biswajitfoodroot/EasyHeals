@@ -4,6 +4,7 @@ import api from '../lib/api';
 import Modal from '../components/ui/Modal';
 import { Plus, Search, Edit3, Trash2, Building2, Stethoscope, UserRound } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../lib/utils';
 
 const TABS = [
     { id: 'hospitals', label: 'Hospitals', icon: Building2 },
@@ -175,7 +176,7 @@ function MasterFormModal({ type, item, onClose }) {
             toast.success(isEdit ? 'Updated' : 'Created');
             onClose();
         },
-        onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
     });
 
     const handleSubmit = (e) => {

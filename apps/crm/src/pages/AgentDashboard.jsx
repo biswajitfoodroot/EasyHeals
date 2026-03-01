@@ -5,6 +5,7 @@ import api from '../lib/api';
 import useAuth from '../hooks/useAuth';
 import Modal from '../components/ui/Modal';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../lib/utils';
 import { getStatusConfig, getVerificationConfig } from '../lib/constants';
 import { Plus, Search, LogOut, Eye, Clock, CheckCircle, XCircle, Key } from 'lucide-react';
 
@@ -195,7 +196,7 @@ function ChangePasswordModal({ onClose }) {
             toast.success('Password updated successfully');
             onClose();
         },
-        onError: (err) => toast.error(err.response?.data?.error || 'Failed to update password'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed to update password')),
     });
 
     const handleAction = () => {

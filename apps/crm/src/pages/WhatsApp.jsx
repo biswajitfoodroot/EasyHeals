@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import Modal from '../components/ui/Modal';
 import { WA_CATEGORIES } from '../lib/constants';
-import { timeAgo } from '../lib/utils';
+import { timeAgo, getErrorMessage } from '../lib/utils';
 import { Plus, MessageSquare, Edit3, Trash2, Copy, Search, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -114,7 +114,7 @@ function TemplateFormModal({ template, onClose }) {
     const mutation = useMutation({
         mutationFn: (data) => isEdit ? api.patch(`/whatsapp/templates/${template.id}`, data) : api.post('/whatsapp/templates', data),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['wa-templates'] }); toast.success(isEdit ? 'Updated' : 'Created'); onClose(); },
-        onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
     });
 
     const update = (k, v) => setForm(f => ({ ...f, [k]: v }));

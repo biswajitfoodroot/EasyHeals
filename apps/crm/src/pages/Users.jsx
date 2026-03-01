@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import Modal from '../components/ui/Modal';
 import { USER_ROLES, PERMISSION_SECTIONS } from '../lib/constants';
-import { formatDateTime } from '../lib/utils';
+import { formatDateTime, getErrorMessage } from '../lib/utils';
 import { Plus, Shield, UserCog, Edit3, Lock, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -28,7 +28,7 @@ export default function UsersPage() {
     const resetPwd = useMutation({
         mutationFn: ({ userId, newPassword }) => api.post(`/users/${userId}/reset-password`, { newPassword }),
         onSuccess: () => { toast.success('Password reset'); setShowResetPwd(null); setNewPwd(''); },
-        onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
     });
 
     return (
@@ -128,7 +128,7 @@ function UserFormModal({ user, onClose }) {
     const mutation = useMutation({
         mutationFn: (data) => isEdit ? api.patch(`/users/${user.id}`, data) : api.post('/users', data),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); toast.success(isEdit ? 'Updated' : 'User created'); onClose(); },
-        onError: (err) => toast.error(err.response?.data?.error || 'Failed'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
     });
 
     const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -190,8 +190,8 @@ function UserFormModal({ user, onClose }) {
                                             type="button"
                                             onClick={() => togglePermission(item.key)}
                                             className={`flex items-center gap-2 p-2.5 rounded-xl border text-sm font-medium transition-all ${permissions[item.key]
-                                                    ? 'border-teal bg-teal/5 text-teal'
-                                                    : 'border-border bg-gray-50 text-muted hover:border-gray-300'
+                                                ? 'border-teal bg-teal/5 text-teal'
+                                                : 'border-border bg-gray-50 text-muted hover:border-gray-300'
                                                 }`}
                                         >
                                             <div className={`w-4 h-4 rounded border-2 flex items-center justify-center text-[10px] ${permissions[item.key] ? 'border-teal bg-teal text-white' : 'border-gray-300'

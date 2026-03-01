@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../lib/api';
 import useAuth from '../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../lib/utils';
 import { LogIn, Eye, EyeOff } from 'lucide-react';
 
 export default function AgentLogin() {
@@ -29,7 +31,7 @@ export default function AgentLogin() {
             toast.success(`Welcome, ${data.user.name}!`);
             navigate('/agent/dashboard');
         } catch (err) {
-            toast.error(err.response?.data?.error || 'Login failed');
+            toast.error(getErrorMessage(err, 'Login failed'));
         } finally {
             setLoading(false);
         }

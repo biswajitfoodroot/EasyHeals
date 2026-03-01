@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import useAuth from '../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../lib/utils';
 
 export default function Login() {
     const { token, login, setup } = useAuth();
@@ -23,7 +24,7 @@ export default function Login() {
                 toast.success('Welcome back!');
             }
         } catch (err) {
-            const msg = err.response?.data?.error || 'Login failed';
+            const msg = getErrorMessage(err, 'Login failed');
             toast.error(msg);
             // If setup already completed, switch to login mode
             if (msg === 'Setup already completed. Use login instead.') setIsSetup(false);

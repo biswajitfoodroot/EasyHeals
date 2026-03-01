@@ -31,6 +31,14 @@ api.interceptors.response.use(
                 window.location.href = loginPath;
             }
         }
+
+        // Safety net: Ensure error.response.data.error is always a string
+        // This prevents React error #31 if a non-string value reaches toast.error()
+        if (error.response?.data?.error && typeof error.response.data.error !== 'string') {
+            error.response.data.error =
+                error.response.data.error.message || 'An unexpected error occurred';
+        }
+
         return Promise.reject(error);
     }
 );

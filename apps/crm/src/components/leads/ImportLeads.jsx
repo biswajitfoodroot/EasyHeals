@@ -8,6 +8,7 @@ import {
     AlertCircle, ChevronRight, ArrowRight, Loader2, Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../../lib/utils';
 
 // Known field aliases → canonical field name
 const FIELD_MAP = {
@@ -231,7 +232,7 @@ export default function ImportLeads({ isOpen, onClose }) {
             queryClient.invalidateQueries({ queryKey: ['leads'] });
             queryClient.invalidateQueries({ queryKey: ['lead-stats'] });
         },
-        onError: (err) => toast.error(err.response?.data?.error || 'Import failed'),
+        onError: (err) => toast.error(getErrorMessage(err, 'Import failed')),
     });
 
     const handleImport = () => {
