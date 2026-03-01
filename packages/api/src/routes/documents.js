@@ -15,17 +15,30 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-// Configure multer for local file storage
-const uploadDir = path.resolve(__dirname, '../../../../uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+// On Vercel, the filesystem is read-only outside /tmp — use /tmp for uploads in production
+const isVercel = !!process.env.VERCEL;
+const uploadDir = isVercel
+    ? '/tmp/uploads'
+    : path.resolve(__dirname, '../../../../uploads');
+
+try {
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+} catch (e) {
+    // Filesystem may be read-only (e.g. Vercel). Directory creation handled per-request.
+    console.warn('[documents] Could not create uploadDir at startup:', e.message);
 }
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const leadDir = path.join(uploadDir, req.params.leadId);
-        if (!fs.existsSync(leadDir)) {
-            fs.mkdirSync(leadDir, { recursive: true });
+        const leadDir = path.join(uploadDir, req.params.leadId || 'misc');
+        try {
+            if (!fs.existsSync(leadDir)) {
+                fs.mkdirSync(leadDir, { recursive: true });
+            }
+        } catch (e) {
+            console.warn('[documents] Could not create leadDir:', e.message);
         }
         cb(null, leadDir);
     },

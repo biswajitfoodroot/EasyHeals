@@ -19,13 +19,25 @@ const router = express.Router();
 router.use(authenticateToken, requireAgent);
 
 // ─── File Upload Config (4 MB limit) ──────────────────────────────────────────
-const uploadDir = path.resolve(__dirname, '../../../../uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+// On Vercel, the filesystem is read-only outside /tmp
+const isVercel = !!process.env.VERCEL;
+const uploadDir = isVercel
+    ? '/tmp/uploads'
+    : path.resolve(__dirname, '../../../../uploads');
+try {
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+} catch (e) {
+    console.warn('[agentPortal] Could not create uploadDir at startup:', e.message);
+}
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const leadDir = path.join(uploadDir, req.params.id || 'temp');
-        if (!fs.existsSync(leadDir)) fs.mkdirSync(leadDir, { recursive: true });
+        try {
+            if (!fs.existsSync(leadDir)) fs.mkdirSync(leadDir, { recursive: true });
+        } catch (e) {
+            console.warn('[agentPortal] Could not create leadDir:', e.message);
+        }
         cb(null, leadDir);
     },
     filename: (req, file, cb) => {
