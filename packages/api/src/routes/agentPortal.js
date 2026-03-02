@@ -258,6 +258,65 @@ router.get('/leads/:id', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// VISA LETTER DATA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// PATCH /agent-portal/leads/:id/visa-data — Update visa letter information
+router.patch('/leads/:id/visa-data', async (req, res) => {
+    try {
+        const agentId = await getAgentId(req.user.id);
+        if (!agentId) return res.status(403).json({ error: 'Agent profile not linked' });
+        if (!await verifyLeadOwnership(req.params.id, agentId)) {
+            return res.status(404).json({ error: 'Lead not found' });
+        }
+
+        // Check if frozen
+        const [lead] = await db.select().from(leads).where(eq(leads.id, req.params.id)).limit(1);
+        if (lead.visaDataFrozen) {
+            return res.status(403).json({ error: 'Visa letter data has been locked by your advisor and cannot be edited' });
+        }
+
+        const { visaLetterData } = req.body;
+        if (!visaLetterData) {
+            return res.status(400).json({ error: 'Visa letter data is required' });
+        }
+
+        const patient = visaLetterData.patient || {};
+        const updatePayload = {
+            visaLetterData,
+            updatedAt: new Date(),
+        };
+
+        // Sync patient info if available
+        if (patient.name) updatePayload.name = patient.name;
+        if (patient.passportNo) updatePayload.passportNumber = patient.passportNo;
+        if (patient.dateOfBirth) updatePayload.dateOfBirth = patient.dateOfBirth;
+        if (patient.gender) updatePayload.gender = patient.gender;
+        if (patient.nationality) updatePayload.country = patient.nationality;
+        if (patient.address) updatePayload.nativeAddress = patient.address;
+        if (patient.contactNumber) updatePayload.phone = patient.contactNumber;
+        if (patient.email) updatePayload.email = patient.email;
+
+        const [updated] = await db.update(leads)
+            .set(updatePayload)
+            .where(eq(leads.id, req.params.id))
+            .returning();
+
+        await db.insert(activities).values({
+            leadId: req.params.id,
+            type: 'visa_data_updated',
+            description: 'Visa letter data updated via Agent Portal',
+            performedBy: req.user.id,
+        });
+
+        res.json({ message: 'Visa letter data saved', visaLetterData: updated.visaLetterData });
+    } catch (error) {
+        logger.error('Agent: Error updating visa data:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ATTENDANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 

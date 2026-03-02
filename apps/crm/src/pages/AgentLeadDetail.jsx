@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { API_BASE } from '../lib/api';
 import { getStatusConfig, getVerificationConfig } from '../lib/constants';
-import { ArrowLeft, Download, Printer, FileText, Users, Plane, Building2, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Download, Printer, FileText, Users, Plane, Building2, Clock, CheckCircle, XCircle, Lock, Edit3, Save, Shield, Scan, Camera, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function AgentLeadDetail() {
     const { id } = useParams();
@@ -201,6 +202,11 @@ export default function AgentLeadDetail() {
                 )}
             </div>
 
+            {/* Visa Letter Data Section */}
+            <div className="max-w-3xl mx-auto px-4 pb-2">
+                <AgentVisaSection lead={lead} />
+            </div>
+
             {/* Documents (not in printable section) */}
             <div className="max-w-3xl mx-auto px-4 pb-6 space-y-4">
                 {regularDocs.length > 0 && (
@@ -260,3 +266,274 @@ export default function AgentLeadDetail() {
         </div>
     );
 }
+
+// ─── Agent Visa Letter Section ────────────────────────────────────────────────
+
+const EMPTY_PERSON = { surname: '', givenName: '', passportNo: '', dateOfBirth: '', gender: '', nationality: '', address: '', contactNumber: '', email: '' };
+const EMPTY_PATIENT = { ...EMPTY_PERSON, doctorSpeciality: '' };
+const EMPTY_ATTENDANT = { ...EMPTY_PERSON, relationship: '' };
+
+function AgentVisaSection({ lead }) {
+    const queryClient = useQueryClient();
+    const isFrozen = !!lead.visaDataFrozen;
+
+    const existing = lead.visaLetterData || {};
+
+    // Split name for auto-population
+    const nameParts = (lead.name || '').split(' ');
+    const autoGivenName = nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : lead.name || '';
+    const autoSurname = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+
+    const autoPatient = {
+        ...EMPTY_PATIENT,
+        surname: autoSurname,
+        givenName: autoGivenName,
+        dateOfBirth: lead.dateOfBirth || '',
+        gender: lead.gender || '',
+        passportNo: lead.passportNumber || '',
+        contactNumber: lead.phone || '',
+        email: lead.email || '',
+        nationality: lead.country || '',
+        address: lead.nativeAddress || '',
+    };
+
+    const [data, setData] = useState({
+        patient: { ...autoPatient, ...(existing.patient || {}) },
+        attendant1: { ...EMPTY_ATTENDANT, ...(existing.attendant1 || {}) },
+        attendant2: { ...EMPTY_ATTENDANT, ...(existing.attendant2 || {}) },
+        attendant3: { ...EMPTY_ATTENDANT, ...(existing.attendant3 || {}) },
+    });
+    const [editing, setEditing] = useState(false);
+    const [scanning, setScanning] = useState(null);
+
+    const handleScan = async (sectionKey, file) => {
+        setScanning(sectionKey);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await api.post('/ocr/scan-passport', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            const ocr = res.data;
+            setData(prev => ({
+                ...prev,
+                [sectionKey]: {
+                    ...prev[sectionKey],
+                    surname: ocr.surname || prev[sectionKey].surname,
+                    givenName: ocr.givenName || prev[sectionKey].givenName,
+                    passportNo: ocr.passportNo || prev[sectionKey].passportNo,
+                    dateOfBirth: ocr.dob || prev[sectionKey].dateOfBirth,
+                    gender: ocr.gender || prev[sectionKey].gender,
+                    nationality: ocr.nationality || prev[sectionKey].nationality,
+                    address: ocr.address || prev[sectionKey].address,
+                }
+            }));
+            toast.success('Document scanned and fields auto-filled');
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to scan document');
+        } finally {
+            setScanning(null);
+        }
+    };
+
+    const saveMutation = useMutation({
+        mutationFn: (visaData) => {
+            const fullName = `${visaData.patient.givenName} ${visaData.patient.surname}`.trim();
+            const payload = {
+                visaLetterData: visaData,
+                // Sync patient info
+                name: fullName,
+                passportNumber: visaData.patient.passportNo,
+                dateOfBirth: visaData.patient.dateOfBirth,
+                gender: visaData.patient.gender,
+                country: visaData.patient.nationality,
+                nativeAddress: visaData.patient.address,
+                phone: visaData.patient.contactNumber,
+                email: visaData.patient.email,
+            };
+            return api.patch(`/agent-portal/leads/${lead.id}/visa-data`, payload);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['agent-lead', lead.id] });
+            toast.success('Visa letter information saved and profile updated');
+            setEditing(false);
+        },
+        onError: (err) => toast.error(err.response?.data?.error || 'Failed to save'),
+    });
+
+    const updateField = (section, field, value) => {
+        setData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
+    };
+
+    const GENDERS = [
+        { value: 'male', label: 'Male' },
+        { value: 'female', label: 'Female' },
+        { value: 'other', label: 'Other' }
+    ];
+    const RELATIONSHIPS = [
+        { value: 'spouse', label: 'Spouse' },
+        { value: 'parent', label: 'Parent' },
+        { value: 'child', label: 'Child' },
+        { value: 'sibling', label: 'Sibling' },
+        { value: 'relative', label: 'Relative' },
+        { value: 'friend', label: 'Friend' },
+        { value: 'other', label: 'Other' }
+    ];
+
+    const PersonCard = ({ title, sectionKey, fields, icon }) => {
+        const sectionData = data[sectionKey];
+        const total = Object.keys(fields).length;
+        const filled = Object.values(sectionData).filter(v => v && String(v).trim()).length;
+        const pct = Math.round((filled / total) * 100);
+
+        const fileInputRef = useRef();
+
+        return (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-sm font-bold text-teal flex items-center gap-2">
+                        <span>{icon}</span> {title}
+                    </h2>
+                    <div className="flex items-center gap-3">
+                        {!isFrozen && (
+                            <div className="flex gap-2">
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/*,.pdf"
+                                    onChange={(e) => e.target.files[0] && handleScan(sectionKey, e.target.files[0])}
+                                />
+                                <button
+                                    onClick={() => fileInputRef.current.click()}
+                                    disabled={scanning === sectionKey}
+                                    className="text-[10px] font-bold flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
+                                >
+                                    {scanning === sectionKey ? <Loader2 size={12} className="animate-spin" /> : <Scan size={12} />}
+                                    {scanning === sectionKey ? 'Scanning...' : 'Scan Passport'}
+                                </button>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                            <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-teal rounded-full transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-bold">{filled}/{total}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(fields).map(([key, config]) => (
+                        <div key={key} className={config.fullWidth ? 'col-span-2' : ''}>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{config.label}</div>
+                            {!editing || isFrozen ? (
+                                <div className="text-sm text-slate-800">
+                                    {config.type === 'select'
+                                        ? config.options.find(o => o.value === sectionData[key])?.label || <span className="text-gray-300 italic">—</span>
+                                        : sectionData[key] || <span className="text-gray-300 italic">—</span>}
+                                </div>
+                            ) : config.type === 'select' ? (
+                                <select value={sectionData[key] || ''} onChange={e => updateField(sectionKey, key, e.target.value)}
+                                    className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm">
+                                    <option value="">Select...</option>
+                                    {config.options.map(o => (
+                                        <option key={typeof o === 'string' ? o : o.value} value={typeof o === 'string' ? o : o.value}>
+                                            {typeof o === 'string' ? o : o.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <input
+                                    type={config.type || 'text'}
+                                    value={sectionData[key] || ''}
+                                    onChange={e => updateField(sectionKey, key, e.target.value)}
+                                    className={`w-full border rounded-lg px-3 py-1.5 text-sm ${config.required && !sectionData[key] ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
+                                    required={config.required}
+                                    pattern={config.pattern}
+                                />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const patientFields = {
+        surname: { label: 'Patient Surname', required: true },
+        givenName: { label: 'Patient Given Name', required: true },
+        gender: { label: 'Gender', type: 'select', options: GENDERS, required: true },
+        dateOfBirth: { label: 'Date of Birth', type: 'date', required: true },
+        nationality: { label: 'Nationality', required: true },
+        passportNo: { label: 'Passport No', required: true, pattern: '[A-Z0-9]{6,12}' },
+        address: { label: 'Address in Native Country', fullWidth: true, required: true },
+        contactNumber: { label: 'Contact Number', required: true },
+        email: { label: 'Email id', type: 'email', required: true },
+        doctorSpeciality: { label: "Diagnosis/ Proposed Treatment", required: true },
+    };
+
+    const attendantFields = {
+        surname: { label: 'Attendant Surname' },
+        givenName: { label: 'Attendant Given Name' },
+        passportNo: { label: 'Attendant Passport No', pattern: '[A-Z0-9]{6,12}' },
+        gender: { label: 'Gender', type: 'select', options: GENDERS },
+        dateOfBirth: { label: 'Date of Birth', type: 'date' },
+        address: { label: 'Address in Native Country', fullWidth: true },
+        contactNumber: { label: 'Contact Number' },
+        email: { label: 'Email id', type: 'email' },
+        relationship: { label: 'Relationship between Patient & Attendant', type: 'select', options: RELATIONSHIPS },
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* Section header */}
+            <div className="flex flex-col gap-3 py-2 border-b border-gray-100 mb-2">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Shield size={12} className="text-teal" /> Visa Letter Management
+                    </h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {isFrozen && (
+                        <div className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-100 shadow-sm">
+                            <Lock size={14} /> Locked by Advisor
+                        </div>
+                    )}
+                    {!isFrozen && (
+                        editing ? (
+                            <button onClick={() => saveMutation.mutate(data)} disabled={saveMutation.isPending}
+                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold bg-teal text-white hover:bg-teal-dark transition-all shadow-sm">
+                                <Save size={14} /> {saveMutation.isPending ? 'Saving...' : 'Save All Details'}
+                            </button>
+                        ) : (
+                            <button onClick={() => setEditing(true)}
+                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold bg-teal-50 text-teal hover:bg-teal-100 border border-teal-100 transition-all shadow-sm">
+                                <Edit3 size={14} /> Edit Information
+                            </button>
+                        )
+                    )}
+                </div>
+            </div>
+
+            {isFrozen && (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700">
+                    <Shield size={14} />
+                    <span>This information has been <strong>finalized/locked</strong> and cannot be modified. Contact your advisor if changes are needed.</span>
+                </div>
+            )}
+
+            <PersonCard title="Patient Details" sectionKey="patient" fields={patientFields} icon="🧑‍⚕️" />
+            <PersonCard title="Details of Attendant 1" sectionKey="attendant1" fields={attendantFields} icon="👤" />
+            <PersonCard title="Details of Attendant 2" sectionKey="attendant2" fields={attendantFields} icon="👤" />
+            <PersonCard title="Details of Attendant 3" sectionKey="attendant3" fields={attendantFields} icon="👤" />
+
+            {editing && !isFrozen && (
+                <button onClick={() => saveMutation.mutate(data)} disabled={saveMutation.isPending}
+                    className="w-full py-3 bg-teal text-white text-sm font-bold rounded-xl hover:bg-teal-dark transition-colors flex items-center justify-center gap-2">
+                    <Save size={16} /> {saveMutation.isPending ? 'Saving...' : 'Save All Visa Information'}
+                </button>
+            )}
+        </div>
+    );
+}
+

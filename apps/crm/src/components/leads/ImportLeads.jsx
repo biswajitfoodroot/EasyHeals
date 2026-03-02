@@ -262,272 +262,13 @@ export default function ImportLeads({ isOpen, onClose }) {
     const invalidCount = parsedLeads.filter(l => !l._valid).length;
 
     return (
-        <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" />
-            <div className="relative w-full sm:w-[680px] bg-white h-full shadow-2xl animate-slide-in-right flex flex-col z-10"
-                onClick={(e) => e.stopPropagation()}>
-
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-gray-50 shrink-0">
-                    <div>
-                        <h2 className="text-lg font-bold">Import Leads</h2>
-                        <p className="text-xs text-muted">Upload CSV/XLS or paste data</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {step !== 'input' && step !== 'result' && (
-                            <button onClick={reset} className="btn-ghost btn-sm text-xs">Start Over</button>
-                        )}
-                        <button onClick={() => { reset(); onClose(); }} className="p-2 hover:bg-gray-200 rounded-lg"><X size={18} /></button>
-                    </div>
-                </div>
-
-                {/* Steps indicator */}
-                <div className="px-6 py-3 border-b border-border flex items-center gap-2 text-xs font-bold">
-                    {['Input', 'Map Columns', 'Preview', 'Done'].map((label, i) => {
-                        const steps = ['input', 'mapping', 'preview', 'result'];
-                        const currentIdx = steps.indexOf(step);
-                        const isActive = i === currentIdx;
-                        const isDone = i < currentIdx;
-                        return (
-                            <React.Fragment key={label}>
-                                {i > 0 && <ChevronRight size={12} className="text-muted" />}
-                                <span className={`px-2 py-1 rounded-lg ${isActive ? 'bg-teal text-white' : isDone ? 'bg-teal/10 text-teal' : 'text-muted'}`}>
-                                    {label}
-                                </span>
-                            </React.Fragment>
-                        );
-                    })}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6">
-
-                    {/* Step 1: Input */}
-                    {step === 'input' && (
-                        <div className="space-y-6">
-                            {/* Mode Toggle */}
-                            <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-                                <button onClick={() => setMode('file')}
-                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'file' ? 'bg-white shadow-sm text-teal' : 'text-muted'}`}>
-                                    <FileSpreadsheet size={16} className="inline mr-1.5" /> Upload File
-                                </button>
-                                <button onClick={() => setMode('paste')}
-                                    className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'paste' ? 'bg-white shadow-sm text-teal' : 'text-muted'}`}>
-                                    <ClipboardPaste size={16} className="inline mr-1.5" /> Paste Data
-                                </button>
-                            </div>
-
-                            {mode === 'file' && (
-                                <>
-                                    <div
-                                        className="border-2 border-dashed border-border rounded-2xl p-10 text-center hover:border-teal/50 transition-colors cursor-pointer group"
-                                        onClick={() => fileRef.current?.click()}
-                                    >
-                                        <Upload size={40} className="mx-auto mb-4 text-muted group-hover:text-teal transition-colors" />
-                                        <p className="font-bold text-sm mb-1">Drop file or click to upload</p>
-                                        <p className="text-xs text-muted">Supports CSV, XLS, XLSX files</p>
-                                        <input ref={fileRef} type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={handleFile} />
-                                    </div>
-                                    <button onClick={downloadTemplate} className="btn-ghost btn-sm w-full text-xs">
-                                        <Download size={14} /> Download Template
-                                    </button>
-                                </>
-                            )}
-
-                            {mode === 'paste' && (
-                                <>
-                                    <div>
-                                        <label className="form-label">Paste leads data below</label>
-                                        <textarea
-                                            rows={12}
-                                            value={pasteText}
-                                            onChange={(e) => setPasteText(e.target.value)}
-                                            className="form-input font-mono text-xs resize-none"
-                                            placeholder={`Name\tPhone\tEmail\tCountry\nJohn Doe\t+919876543210\tjohn@mail.com\tIndia\nJane Smith\t+8801756789012\tjane@mail.com\tBangladesh\n\n— or use commas —\n\nName,Phone,Email,Country\nJohn Doe,+919876543210,john@mail.com,India`}
-                                        />
-                                        <p className="text-[10px] text-muted mt-1">
-                                            Tab-separated or comma-separated. First row can be headers. System auto-detects format.
-                                        </p>
-                                    </div>
-                                    <button onClick={handlePaste} disabled={!pasteText.trim()} className="btn-primary w-full">
-                                        <ArrowRight size={16} /> Parse Data
-                                    </button>
-                                </>
-                            )}
-
-                            {/* Help */}
-                            <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                                <h4 className="text-sm font-bold text-blue-800 mb-2">💡 Smart Import Tips</h4>
-                                <ul className="text-xs text-blue-700 space-y-1">
-                                    <li>• System auto-detects column headers (Name, Phone, Email, etc.)</li>
-                                    <li>• Country codes in phone numbers are auto-detected (+91, +880, etc.)</li>
-                                    <li>• Duplicates are detected by phone number and skipped</li>
-                                    <li>• Review all data before importing — you can fix issues in preview</li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Step 2: Column Mapping */}
-                    {step === 'mapping' && (
-                        <div className="space-y-6">
-                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-                                <AlertCircle size={14} className="inline mr-1" />
-                                Map each column to a lead field. Auto-mapped columns are pre-selected.
-                            </div>
-
-                            <div className="space-y-3">
-                                {headers.map((header, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                                        <div className="min-w-0 flex-1">
-                                            <div className="text-sm font-bold truncate">{header}</div>
-                                            <div className="text-[10px] text-muted truncate">e.g. {rawRows[0]?.[i] || '—'}</div>
-                                        </div>
-                                        <ArrowRight size={14} className="text-muted shrink-0" />
-                                        <select
-                                            value={columnMapping[i] || ''}
-                                            onChange={(e) => updateMapping(i, e.target.value)}
-                                            className={`form-select w-40 text-xs ${columnMapping[i] ? 'border-teal text-teal font-bold' : ''}`}
-                                        >
-                                            <option value="">— Skip —</option>
-                                            {DISPLAY_FIELDS.map(f => (
-                                                <option key={f.key} value={f.key}>
-                                                    {f.label} {f.required ? '*' : ''}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Validation */}
-                            {!Object.values(columnMapping).includes('name') && (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold">
-                                    ⚠️ "Name" column must be mapped
-                                </div>
-                            )}
-                            {!Object.values(columnMapping).includes('phone') && (
-                                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold">
-                                    ⚠️ "Phone" column must be mapped
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Step 3: Preview */}
-                    {step === 'preview' && (
-                        <div className="space-y-4">
-                            {/* Stats */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="p-3 bg-blue-50 rounded-xl text-center">
-                                    <div className="text-xl font-bold text-blue-700">{parsedLeads.length}</div>
-                                    <div className="text-[10px] font-bold text-blue-600 uppercase">Total</div>
-                                </div>
-                                <div className="p-3 bg-green-50 rounded-xl text-center">
-                                    <div className="text-xl font-bold text-green-700">{validCount}</div>
-                                    <div className="text-[10px] font-bold text-green-600 uppercase">Valid</div>
-                                </div>
-                                <div className="p-3 bg-red-50 rounded-xl text-center">
-                                    <div className="text-xl font-bold text-red-700">{invalidCount}</div>
-                                    <div className="text-[10px] font-bold text-red-600 uppercase">Invalid</div>
-                                </div>
-                            </div>
-
-                            {/* Preview Table */}
-                            <div className="overflow-x-auto border border-border rounded-xl">
-                                <table className="w-full text-xs">
-                                    <thead>
-                                        <tr className="bg-gray-50">
-                                            <th className="table-header w-8">#</th>
-                                            <th className="table-header">Status</th>
-                                            {DISPLAY_FIELDS.filter(f => Object.values(columnMapping).includes(f.key)).map(f => (
-                                                <th key={f.key} className="table-header">{f.label}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {parsedLeads.slice(0, 50).map((lead, i) => (
-                                            <tr key={i} className={`border-t border-border ${lead._valid ? '' : 'bg-red-50/50'}`}>
-                                                <td className="px-3 py-2 text-muted">{lead._row}</td>
-                                                <td className="px-3 py-2">
-                                                    {lead._valid ? (
-                                                        <Check size={14} className="text-green-500" />
-                                                    ) : (
-                                                        <span className="text-red-500 text-[10px] font-bold">{lead._errors.join(', ')}</span>
-                                                    )}
-                                                </td>
-                                                {DISPLAY_FIELDS.filter(f => Object.values(columnMapping).includes(f.key)).map(f => (
-                                                    <td key={f.key} className="px-3 py-2 max-w-[120px] truncate">
-                                                        {lead[f.key] || <span className="text-muted">—</span>}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {parsedLeads.length > 50 && (
-                                <p className="text-xs text-muted text-center">Showing first 50 of {parsedLeads.length} rows</p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Step 4: Result */}
-                    {step === 'result' && importResult && (
-                        <div className="space-y-6">
-                            <div className="text-center py-4">
-                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Check size={32} className="text-green-600" />
-                                </div>
-                                <h3 className="text-xl font-bold mb-1">Import Complete!</h3>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="p-4 bg-green-50 rounded-xl text-center">
-                                    <div className="text-2xl font-bold text-green-700">{importResult.created?.length || 0}</div>
-                                    <div className="text-xs font-bold text-green-600">Created</div>
-                                </div>
-                                <div className="p-4 bg-amber-50 rounded-xl text-center">
-                                    <div className="text-2xl font-bold text-amber-700">{importResult.skipped?.length || 0}</div>
-                                    <div className="text-xs font-bold text-amber-600">Duplicates</div>
-                                </div>
-                                <div className="p-4 bg-red-50 rounded-xl text-center">
-                                    <div className="text-2xl font-bold text-red-700">{importResult.failed?.length || 0}</div>
-                                    <div className="text-xs font-bold text-red-600">Failed</div>
-                                </div>
-                            </div>
-
-                            {importResult.skipped?.length > 0 && (
-                                <div>
-                                    <h4 className="text-sm font-bold mb-2 text-amber-700">Skipped (Duplicates)</h4>
-                                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                                        {importResult.skipped.map((s, i) => (
-                                            <div key={i} className="text-xs p-2 bg-amber-50 rounded-lg">
-                                                <span className="font-bold">{s.name}</span> — {s._error}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {importResult.failed?.length > 0 && (
-                                <div>
-                                    <h4 className="text-sm font-bold mb-2 text-red-700">Failed</h4>
-                                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                                        {importResult.failed.map((f, i) => (
-                                            <div key={i} className="text-xs p-2 bg-red-50 rounded-lg">
-                                                <span className="font-bold">{f.name || 'Unknown'}</span> — {f._error}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="px-6 py-4 border-t border-border bg-gray-50 shrink-0 flex gap-3">
+        <Modal
+            isOpen={isOpen}
+            onClose={() => { reset(); onClose(); }}
+            title="Import Leads"
+            size="xl"
+            footer={
+                <div className="flex gap-3 w-full">
                     {step === 'mapping' && (
                         <>
                             <button onClick={reset} className="btn-secondary flex-1">Back</button>
@@ -561,8 +302,256 @@ export default function ImportLeads({ isOpen, onClose }) {
                             Done
                         </button>
                     )}
+                    {step === 'input' && (
+                        <button onClick={() => { reset(); onClose(); }} className="btn-secondary flex-1">
+                            Cancel
+                        </button>
+                    )}
                 </div>
+            }
+        >
+            <div className="space-y-4">
+                {/* Steps indicator */}
+                <div className="flex items-center gap-2 text-xs font-bold mb-4">
+                    {['Input', 'Map Columns', 'Preview', 'Done'].map((label, i) => {
+                        const steps = ['input', 'mapping', 'preview', 'result'];
+                        const currentIdx = steps.indexOf(step);
+                        const isActive = i === currentIdx;
+                        const isDone = i < currentIdx;
+                        return (
+                            <React.Fragment key={label}>
+                                {i > 0 && <ChevronRight size={12} className="text-muted" />}
+                                <span className={`px-2 py-1 rounded-lg ${isActive ? 'bg-teal text-white' : isDone ? 'bg-teal/10 text-teal' : 'text-muted'}`}>
+                                    {label}
+                                </span>
+                            </React.Fragment>
+                        );
+                    })}
+                </div>
+
+                {/* Step 1: Input */}
+                {step === 'input' && (
+                    <div className="space-y-6">
+                        {/* Mode Toggle */}
+                        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+                            <button onClick={() => setMode('file')}
+                                className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'file' ? 'bg-white shadow-sm text-teal' : 'text-muted'}`}>
+                                <FileSpreadsheet size={16} className="inline mr-1.5" /> Upload File
+                            </button>
+                            <button onClick={() => setMode('paste')}
+                                className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'paste' ? 'bg-white shadow-sm text-teal' : 'text-muted'}`}>
+                                <ClipboardPaste size={16} className="inline mr-1.5" /> Paste Data
+                            </button>
+                        </div>
+
+                        {mode === 'file' && (
+                            <>
+                                <div
+                                    className="border-2 border-dashed border-border rounded-2xl p-10 text-center hover:border-teal/50 transition-colors cursor-pointer group"
+                                    onClick={() => fileRef.current?.click()}
+                                >
+                                    <Upload size={40} className="mx-auto mb-4 text-muted group-hover:text-teal transition-colors" />
+                                    <p className="font-bold text-sm mb-1">Drop file or click to upload</p>
+                                    <p className="text-xs text-muted">Supports CSV, XLS, XLSX files</p>
+                                    <input ref={fileRef} type="file" accept=".csv,.xls,.xlsx" className="hidden" onChange={handleFile} />
+                                </div>
+                                <button onClick={downloadTemplate} className="btn-ghost btn-sm w-full text-xs">
+                                    <Download size={14} /> Download Template
+                                </button>
+                            </>
+                        )}
+
+                        {mode === 'paste' && (
+                            <>
+                                <div>
+                                    <label className="form-label">Paste leads data below</label>
+                                    <textarea
+                                        rows={12}
+                                        value={pasteText}
+                                        onChange={(e) => setPasteText(e.target.value)}
+                                        className="form-input font-mono text-xs resize-none"
+                                        placeholder={`Name\tPhone\tEmail\tCountry\nJohn Doe\t+919876543210\tjohn@mail.com\tIndia\nJane Smith\t+8801756789012\tjane@mail.com\tBangladesh\n\n— or use commas —\n\nName,Phone,Email,Country\nJohn Doe,+919876543210,john@mail.com,India`}
+                                    />
+                                    <p className="text-[10px] text-muted mt-1">
+                                        Tab-separated or comma-separated. First row can be headers. System auto-detects format.
+                                    </p>
+                                </div>
+                                <button onClick={handlePaste} disabled={!pasteText.trim()} className="btn-primary w-full">
+                                    <ArrowRight size={16} /> Parse Data
+                                </button>
+                            </>
+                        )}
+
+                        {/* Help */}
+                        <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                            <h4 className="text-sm font-bold text-blue-800 mb-2">💡 Smart Import Tips</h4>
+                            <ul className="text-xs text-blue-700 space-y-1">
+                                <li>• System auto-detects column headers (Name, Phone, Email, etc.)</li>
+                                <li>• Country codes in phone numbers are auto-detected (+91, +880, etc.)</li>
+                                <li>• Duplicates are detected by phone number and skipped</li>
+                                <li>• Review all data before importing — you can fix issues in preview</li>
+                            </ul>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 2: Column Mapping */}
+                {step === 'mapping' && (
+                    <div className="space-y-6">
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                            <AlertCircle size={14} className="inline mr-1" />
+                            Map each column to a lead field. Auto-mapped columns are pre-selected.
+                        </div>
+
+                        <div className="space-y-3">
+                            {headers.map((header, i) => (
+                                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-sm font-bold truncate">{header}</div>
+                                        <div className="text-[10px] text-muted truncate">e.g. {rawRows[0]?.[i] || '—'}</div>
+                                    </div>
+                                    <ArrowRight size={14} className="text-muted shrink-0" />
+                                    <select
+                                        value={columnMapping[i] || ''}
+                                        onChange={(e) => updateMapping(i, e.target.value)}
+                                        className={`form-select w-40 text-xs ${columnMapping[i] ? 'border-teal text-teal font-bold' : ''}`}
+                                    >
+                                        <option value="">— Skip —</option>
+                                        {DISPLAY_FIELDS.map(f => (
+                                            <option key={f.key} value={f.key}>
+                                                {f.label} {f.required ? '*' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Validation */}
+                        {!Object.values(columnMapping).includes('name') && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold">
+                                ⚠️ "Name" column must be mapped
+                            </div>
+                        )}
+                        {!Object.values(columnMapping).includes('phone') && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold">
+                                ⚠️ "Phone" column must be mapped
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Step 3: Preview */}
+                {step === 'preview' && (
+                    <div className="space-y-4">
+                        {/* Stats */}
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="p-3 bg-blue-50 rounded-xl text-center">
+                                <div className="text-xl font-bold text-blue-700">{parsedLeads.length}</div>
+                                <div className="text-[10px] font-bold text-blue-600 uppercase">Total</div>
+                            </div>
+                            <div className="p-3 bg-green-50 rounded-xl text-center">
+                                <div className="text-xl font-bold text-green-700">{validCount}</div>
+                                <div className="text-[10px] font-bold text-green-600 uppercase">Valid</div>
+                            </div>
+                            <div className="p-3 bg-red-50 rounded-xl text-center">
+                                <div className="text-xl font-bold text-red-700">{invalidCount}</div>
+                                <div className="text-[10px] font-bold text-red-600 uppercase">Invalid</div>
+                            </div>
+                        </div>
+
+                        {/* Preview Table */}
+                        <div className="overflow-x-auto border border-border rounded-xl">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="bg-gray-50">
+                                        <th className="table-header w-8">#</th>
+                                        <th className="table-header">Status</th>
+                                        {DISPLAY_FIELDS.filter(f => Object.values(columnMapping).includes(f.key)).map(f => (
+                                            <th key={f.key} className="table-header">{f.label}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {parsedLeads.slice(0, 50).map((lead, i) => (
+                                        <tr key={i} className={`border-t border-border ${lead._valid ? '' : 'bg-red-50/50'}`}>
+                                            <td className="px-3 py-2 text-muted">{lead._row}</td>
+                                            <td className="px-3 py-2">
+                                                {lead._valid ? (
+                                                    <Check size={14} className="text-green-500" />
+                                                ) : (
+                                                    <span className="text-red-500 text-[10px] font-bold">{lead._errors.join(', ')}</span>
+                                                )}
+                                            </td>
+                                            {DISPLAY_FIELDS.filter(f => Object.values(columnMapping).includes(f.key)).map(f => (
+                                                <td key={f.key} className="px-3 py-2 max-w-[120px] truncate">
+                                                    {lead[f.key] || <span className="text-muted">—</span>}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {parsedLeads.length > 50 && (
+                            <p className="text-xs text-muted text-center">Showing first 50 of {parsedLeads.length} rows</p>
+                        )}
+                    </div>
+                )}
+
+                {/* Step 4: Result */}
+                {step === 'result' && importResult && (
+                    <div className="space-y-6">
+                        <div className="text-center py-4">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Check size={32} className="text-green-600" />
+                            </div>
+                            <h3 className="text-xl font-bold mb-1">Import Complete!</h3>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                            <div className="p-4 bg-green-50 rounded-xl text-center">
+                                <div className="text-2xl font-bold text-green-700">{importResult.created?.length || 0}</div>
+                                <div className="text-xs font-bold text-green-600">Created</div>
+                            </div>
+                            <div className="p-4 bg-amber-50 rounded-xl text-center">
+                                <div className="text-2xl font-bold text-amber-700">{importResult.skipped?.length || 0}</div>
+                                <div className="text-xs font-bold text-amber-600">Duplicates</div>
+                            </div>
+                            <div className="p-4 bg-red-50 rounded-xl text-center">
+                                <div className="text-2xl font-bold text-red-700">{importResult.failed?.length || 0}</div>
+                                <div className="text-xs font-bold text-red-600">Failed</div>
+                            </div>
+                        </div>
+
+                        {importResult.skipped?.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-bold mb-2 text-amber-700">Skipped (Duplicates)</h4>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {importResult.skipped.map((s, i) => (
+                                        <div key={i} className="text-xs p-2 bg-amber-50 rounded-lg">
+                                            <span className="font-bold">{s.name}</span> — {s._error}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {importResult.failed?.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-bold mb-2 text-red-700">Failed</h4>
+                                <div className="space-y-1 max-h-40 overflow-y-auto">
+                                    {importResult.failed.map((f, i) => (
+                                        <div key={i} className="text-xs p-2 bg-red-50 rounded-lg">
+                                            <span className="font-bold">{f.name || 'Unknown'}</span> — {f._error}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
-        </div>
+        </Modal>
     );
 }

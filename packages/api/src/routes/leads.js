@@ -36,25 +36,32 @@ const createLeadSchema = z.object({
     altCountryCode: z.string().optional(),
     country: z.string().optional(),
     city: z.string().optional(),
-    gender: z.enum(['male', 'female', 'other']).optional(),
+    gender: z.preprocess((val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        return String(val).toLowerCase();
+    }, z.enum(['male', 'female', 'other']).optional()),
     dateOfBirth: z.string().optional(),
     passportNumber: z.string().optional(),
     medicalIssue: z.string().optional(),
-    treatmentDepartmentId: z.string().uuid().optional().nullable(),
-    hospitalId: z.string().uuid().optional().nullable(),
-    doctorId: z.string().uuid().optional().nullable(),
-    approximateAmount: z.string().or(z.number()).optional(),
+    treatmentDepartmentId: z.preprocess((val) => (val === 'undefined' ? null : val), z.string().uuid().optional().nullable()),
+    hospitalId: z.preprocess((val) => (val === 'undefined' ? null : val), z.string().uuid().optional().nullable()),
+    doctorId: z.preprocess((val) => (val === 'undefined' ? null : val), z.string().uuid().optional().nullable()),
+    approximateAmount: z.preprocess((val) => (val === undefined || val === null || val === '' ? undefined : val), z.string().or(z.number()).optional()),
     currency: z.enum(['INR', 'USD', 'AED', 'BDT', 'EUR', 'GBP']).optional().default('INR'),
     symptomsText: z.string().optional(),
     symptomsJson: z.record(z.any()).optional(),
     estimatedTravelDate: z.string().optional(),
-    numberOfAttendants: z.number().int().optional(),
+    numberOfAttendants: z.preprocess((val) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        const n = Number(val);
+        return isNaN(n) ? undefined : n;
+    }, z.number().int().optional()),
     preferredLanguage: z.string().optional(),
     insuranceDetails: z.string().optional(),
     referringDoctor: z.string().optional(),
     medicalHistoryNotes: z.string().optional(),
-    agentId: z.string().uuid().optional().nullable(),
-    assignedTo: z.string().uuid().optional().nullable(),
+    agentId: z.preprocess((val) => (val === 'undefined' ? null : val), z.string().uuid().optional().nullable()),
+    assignedTo: z.preprocess((val) => (val === 'undefined' ? null : val), z.string().uuid().optional().nullable()),
     status: z.enum(['new', 'junk', 'valid', 'prospect', 'visa_letter_requested', 'visa_received', 'appointment_booked', 'visited', 'service_taken', 'lost']).optional().default('new'),
     source: z.string().optional().default('manual'),
     lang: z.string().optional(),
@@ -64,17 +71,23 @@ const createLeadSchema = z.object({
 });
 
 // Helper: Generate Ref ID
+// Uses MAX(CAST(...)) to safely find the highest existing number,
+// avoiding race conditions that can occur when ordering by createdAt.
 async function generateRefId() {
-    const lastLead = await db.select({ refId: leads.refId })
-        .from(leads)
-        .orderBy(desc(leads.createdAt))
-        .limit(1);
+    try {
+        const result = await db.select({
+            maxNum: sql`MAX(CAST(SUBSTR(ref_id, 4) AS INTEGER))`,
+        }).from(leads);
 
-    const nextNum = lastLead.length > 0
-        ? parseInt(lastLead[0].refId.split('-')[1]) + 1
-        : 100001;
-
-    return `EH-${nextNum}`;
+        const maxNum = result[0]?.maxNum;
+        if (maxNum && !isNaN(Number(maxNum))) {
+            return `EH-${Number(maxNum) + 1}`;
+        }
+        return 'EH-100001';
+    } catch (e) {
+        logger.error('Error generating refId:', e);
+        return `EH-${Date.now()}`; // Last resort fallback
+    }
 }
 
 // GET /leads/stats — Aggregated counts for dashboard
@@ -309,18 +322,27 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // POST /leads — Create new lead (public + authenticated)
-router.post('/', createLeadLimiter, async (req, res) => {
+router.post('/', async (req, res) => {
+    console.log('[DEBUG] POST /leads request received');
+    console.log('[DEBUG] Payload:', JSON.stringify(req.body, null, 2));
     try {
+        console.log('[DEBUG] Starting createLeadSchema.parse...');
         const parsed = createLeadSchema.parse(req.body);
+        console.log('[DEBUG] Zod Parse Successful');
+
+        console.log('[DEBUG] Starting generateRefId...');
         const refId = await generateRefId();
+        console.log('[DEBUG] Ref ID Generated:', refId);
 
         // Duplicate detection
+        console.log('[DEBUG] Checking duplicate by phone:', parsed.phone);
         const existingByPhone = await db.select({ id: leads.id, refId: leads.refId, name: leads.name })
             .from(leads)
             .where(eq(leads.phone, parsed.phone))
             .limit(1);
 
         if (existingByPhone.length > 0) {
+            console.log('[DEBUG] Duplicate phone found:', existingByPhone[0].refId);
             return res.status(409).json({
                 error: 'Duplicate lead detected',
                 existing: existingByPhone[0],
@@ -329,12 +351,14 @@ router.post('/', createLeadLimiter, async (req, res) => {
         }
 
         if (parsed.email) {
+            console.log('[DEBUG] Checking duplicate by email:', parsed.email);
             const existingByEmail = await db.select({ id: leads.id, refId: leads.refId, name: leads.name })
                 .from(leads)
                 .where(eq(leads.email, parsed.email))
                 .limit(1);
 
             if (existingByEmail.length > 0) {
+                console.log('[DEBUG] Duplicate email found:', existingByEmail[0].refId);
                 return res.status(409).json({
                     error: 'Duplicate lead detected',
                     existing: existingByEmail[0],
@@ -343,6 +367,7 @@ router.post('/', createLeadLimiter, async (req, res) => {
             }
         }
 
+        console.log('[DEBUG] Starting db.insert into leads...');
         const [newLead] = await db.insert(leads).values({
             refId,
             name: parsed.name,
@@ -360,7 +385,7 @@ router.post('/', createLeadLimiter, async (req, res) => {
             treatmentDepartmentId: parsed.treatmentDepartmentId,
             hospitalId: parsed.hospitalId,
             doctorId: parsed.doctorId,
-            approximateAmount: parsed.approximateAmount ? String(parsed.approximateAmount) : null,
+            approximateAmount: parsed.approximateAmount ? parseFloat(parsed.approximateAmount) : null,
             currency: parsed.currency,
             symptomsText: parsed.symptomsText,
             symptomsJson: parsed.symptomsJson,
@@ -379,21 +404,31 @@ router.post('/', createLeadLimiter, async (req, res) => {
             notes: parsed.notes,
             utmParams: parsed.utmParams,
         }).returning();
+        console.log('[DEBUG] Lead inserted successfully:', newLead.id);
 
-        // Log activity
-        await db.insert(activities).values({
-            leadId: newLead.id,
-            type: 'lead_created',
-            description: `Lead created from ${parsed.source || 'manual'}`,
-            performedBy: req.user?.id || null,
-        });
+        try {
+            // Log activity
+            console.log('[DEBUG] Starting activity log for lead_created...');
+            await db.insert(activities).values({
+                leadId: newLead.id,
+                type: 'lead_created',
+                description: `Lead created from ${parsed.source || 'manual'}`,
+                performedBy: req.user?.id || null,
+            });
+            console.log('[DEBUG] Activity log successful');
+        } catch (actErr) {
+            console.error('[DEBUG] Activity log FAILED:', actErr);
+            logger.error('Error logging lead creation activity:', actErr);
+        }
 
+        console.log('[DEBUG] Returning 201 Success');
         res.status(201).json({
             id: newLead.id,
             ref_id: newLead.refId,
             status: newLead.status,
         });
     } catch (error) {
+        console.error('[DEBUG] CATCH BLOCK EXCEPTION:', error);
         if (error instanceof z.ZodError) {
             return res.status(400).json({
                 error: 'Validation failed',
@@ -401,7 +436,7 @@ router.post('/', createLeadLimiter, async (req, res) => {
             });
         }
         logger.error('Error creating lead:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', message: error.message, stack: error.stack });
     }
 });
 
@@ -548,8 +583,16 @@ router.patch('/:id', authenticateToken, async (req, res) => {
             'insuranceDetails', 'referringDoctor', 'medicalHistoryNotes',
             'agentId', 'assignedTo', 'status', 'source', 'utmParams', 'lang',
             'prescriptionUrl', 'prescriptionAnalysis', 'preferredCallTime',
-            'notes', 'waSentAt', 'lastContactedAt', 'followUpAt'
+            'notes', 'waSentAt', 'lastContactedAt', 'followUpAt',
+            'visaLetterData',
+            'nativeAddress', 'highCommissionName', 'embassyName', 'indiaAddress',
+            'indianPhoneNumber', 'tentativeDuration', 'appointmentDate',
         ];
+
+        // Block visa data edits if frozen
+        if (req.body.visaLetterData !== undefined && oldLead.visaDataFrozen) {
+            return res.status(403).json({ error: 'Visa letter data is frozen and cannot be edited' });
+        }
 
         const filteredBody = {};
         for (const key of allowedFields) {
@@ -557,7 +600,7 @@ router.patch('/:id', authenticateToken, async (req, res) => {
                 let val = req.body[key];
 
                 // Explicit type casting for database
-                if (key === 'approximateAmount') val = val ? String(val) : null;
+                if (key === 'approximateAmount') val = val ? parseFloat(val) : null;
                 if (key === 'numberOfAttendants') val = val ? Number(val) : null;
                 if (['waSentAt', 'lastContactedAt', 'followUpAt'].includes(key)) val = val ? new Date(val) : null;
 
@@ -639,6 +682,76 @@ router.patch('/:id', authenticateToken, async (req, res) => {
         res.json(updatedLead);
     } catch (error) {
         logger.error('Error updating lead:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// POST /leads/:id/visa-data/freeze — Lock visa letter data (advisor+ only)
+router.post('/:id/visa-data/freeze', authenticateToken, async (req, res) => {
+    try {
+        const userRole = req.user.role;
+        if (!['owner', 'admin', 'advisor'].includes(userRole)) {
+            return res.status(403).json({ error: 'Only advisors or higher can freeze visa data' });
+        }
+
+        const [lead] = await db.select().from(leads).where(eq(leads.id, req.params.id)).limit(1);
+        if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+        const [updated] = await db.update(leads)
+            .set({
+                visaDataFrozen: true,
+                visaDataFrozenBy: req.user.id,
+                visaDataFrozenAt: new Date(),
+                updatedAt: new Date(),
+            })
+            .where(eq(leads.id, req.params.id))
+            .returning();
+
+        await db.insert(activities).values({
+            leadId: req.params.id,
+            type: 'visa_data_frozen',
+            description: 'Visa letter data has been frozen',
+            performedBy: req.user.id,
+        });
+
+        res.json({ message: 'Visa letter data frozen', lead: updated });
+    } catch (error) {
+        logger.error('Error freezing visa data:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// POST /leads/:id/visa-data/unfreeze — Unlock visa letter data (advisor+ only)
+router.post('/:id/visa-data/unfreeze', authenticateToken, async (req, res) => {
+    try {
+        const userRole = req.user.role;
+        if (!['owner', 'admin', 'advisor'].includes(userRole)) {
+            return res.status(403).json({ error: 'Only advisors or higher can unfreeze visa data' });
+        }
+
+        const [lead] = await db.select().from(leads).where(eq(leads.id, req.params.id)).limit(1);
+        if (!lead) return res.status(404).json({ error: 'Lead not found' });
+
+        const [updated] = await db.update(leads)
+            .set({
+                visaDataFrozen: false,
+                visaDataFrozenBy: null,
+                visaDataFrozenAt: null,
+                updatedAt: new Date(),
+            })
+            .where(eq(leads.id, req.params.id))
+            .returning();
+
+        await db.insert(activities).values({
+            leadId: req.params.id,
+            type: 'visa_data_unfrozen',
+            description: 'Visa letter data has been unfrozen',
+            performedBy: req.user.id,
+        });
+
+        res.json({ message: 'Visa letter data unfrozen', lead: updated });
+    } catch (error) {
+        logger.error('Error unfreezing visa data:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
@@ -892,6 +1005,13 @@ router.get('/:id/attendants', authenticateToken, async (req, res) => {
         logger.error('Error fetching attendants:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
+    // router.get('/:id/attendants', ...) catch (error) { ... }
+});
+
+router.use((err, req, res, next) => {
+    console.error('[DEBUG] LEADS ROUTER ERROR:', err);
+    logger.error('Leads router error:', err);
+    res.status(500).json({ error: 'Internal Server Error', message: err.message, stack: err.stack });
 });
 
 export default router;

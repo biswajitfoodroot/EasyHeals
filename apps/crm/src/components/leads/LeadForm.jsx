@@ -73,6 +73,7 @@ export default function LeadForm({ isOpen, onClose, editLead = null }) {
             onClose();
         },
         onError: (err) => {
+            console.error('FULL ERROR RESPONSE:', err?.response?.data || err);
             toast.error(getErrorMessage(err, 'Failed to save'));
         },
     });
@@ -83,9 +84,16 @@ export default function LeadForm({ isOpen, onClose, editLead = null }) {
             toast.error('Name and phone are required');
             return;
         }
-        const data = { ...form };
-        if (data.numberOfAttendants) data.numberOfAttendants = Number(data.numberOfAttendants);
-        saveLead.mutate(data);
+        const payload = { ...form };
+
+        // Clean up empty strings for numeric/enum fields to avoid Zod errors if backend is strict
+        if (payload.numberOfAttendants === '') delete payload.numberOfAttendants;
+        else if (payload.numberOfAttendants) payload.numberOfAttendants = Number(payload.numberOfAttendants);
+
+        if (payload.gender === '') delete payload.gender;
+        if (payload.approximateAmount === '') delete payload.approximateAmount;
+
+        saveLead.mutate(payload);
     };
 
     const update = (field, value) => setForm(f => ({ ...f, [field]: value }));
@@ -102,36 +110,38 @@ export default function LeadForm({ isOpen, onClose, editLead = null }) {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm animate-fade-in" />
-            <div className="relative w-full sm:w-[520px] bg-white h-full shadow-2xl animate-slide-in-right flex flex-col z-10"
-                onClick={(e) => e.stopPropagation()}>
-
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-gray-50 shrink-0">
-                    <h2 className="text-lg font-bold">{isEdit ? 'Edit Lead' : 'New Lead'}</h2>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-lg"><X size={18} /></button>
-                </div>
-
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-2">
-
-                    {/* Contact Section */}
-                    <SectionHeader id="contact" title="Contact Information" icon="👤" />
-                    {expandedSections.contact && (
-                        <div className="space-y-4 py-4">
-                            <div>
-                                <label className="form-label">Full Name *</label>
-                                <input value={form.name} onChange={(e) => update('name', e.target.value)} className="form-input" placeholder="Patient name" required />
-                            </div>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={isEdit ? 'Edit Lead' : 'New Lead'}
+            size="2xl"
+            footer={
+                <>
+                    <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+                    <button onClick={handleSubmit} disabled={saveLead.isPending} className="btn-primary flex-1">
+                        <Save size={16} /> {saveLead.isPending ? 'Saving...' : isEdit ? 'Update Lead' : 'Create Lead'}
+                    </button>
+                </>
+            }
+        >
+            <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Contact Section */}
+                <SectionHeader id="contact" title="Contact Information" icon="👤" />
+                {expandedSections.contact && (
+                    <div className="space-y-4 py-4 px-1 border-x border-gray-50/50">
+                        <div>
+                            <label className="form-label">Full Name *</label>
+                            <input value={form.name} onChange={(e) => update('name', e.target.value)} className="form-input" placeholder="Patient name" required />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="form-label">Email</label>
                                 <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} className="form-input" placeholder="email@example.com" />
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                <div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="col-span-1">
                                     <label className="form-label">Code</label>
-                                    <select value={form.countryCode} onChange={(e) => update('countryCode', e.target.value)} className="form-select">
+                                    <select value={form.countryCode} onChange={(e) => update('countryCode', e.target.value)} className="form-select text-xs">
                                         {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.code}</option>)}
                                     </select>
                                 </div>
@@ -140,10 +150,12 @@ export default function LeadForm({ isOpen, onClose, editLead = null }) {
                                     <input value={form.phone} onChange={(e) => update('phone', e.target.value)} className="form-input" placeholder="Phone number" required />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                <div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="col-span-1">
                                     <label className="form-label">Alt Code</label>
-                                    <select value={form.altCountryCode} onChange={(e) => update('altCountryCode', e.target.value)} className="form-select">
+                                    <select value={form.altCountryCode} onChange={(e) => update('altCountryCode', e.target.value)} className="form-select text-xs">
                                         {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.flag} {c.code}</option>)}
                                     </select>
                                 </div>
@@ -162,37 +174,41 @@ export default function LeadForm({ isOpen, onClose, editLead = null }) {
                                     <input value={form.city} onChange={(e) => update('city', e.target.value)} className="form-input" placeholder="City" />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="form-label">Gender</label>
-                                    <select value={form.gender || ''} onChange={(e) => update('gender', e.target.value || null)} className="form-select">
-                                        <option value="">Select</option>
-                                        {GENDERS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="form-label">Date of Birth</label>
-                                    <input type="date" value={form.dateOfBirth || ''} onChange={(e) => update('dateOfBirth', e.target.value)} className="form-input" />
-                                </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="form-label">Gender</label>
+                                <select value={form.gender || ''} onChange={(e) => update('gender', e.target.value || null)} className="form-select">
+                                    <option value="">Select</option>
+                                    {GENDERS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="form-label">Date of Birth</label>
+                                <input type="date" value={form.dateOfBirth || ''} onChange={(e) => update('dateOfBirth', e.target.value)} className="form-input" />
                             </div>
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {/* Medical Section */}
-                    <SectionHeader id="medical" title="Medical Details" icon="🏥" />
-                    {expandedSections.medical && (
-                        <div className="space-y-4 py-4">
-                            <div>
-                                <label className="form-label">Medical Issue</label>
-                                <textarea rows={3} value={form.medicalIssue || ''} onChange={(e) => update('medicalIssue', e.target.value)} className="form-textarea" placeholder="Describe the medical condition..." />
-                            </div>
+                {/* Medical Section */}
+                <SectionHeader id="medical" title="Medical Details" icon="🏥" />
+                {expandedSections.medical && (
+                    <div className="space-y-4 py-4 px-1">
+                        <div>
+                            <label className="form-label">Medical Issue</label>
+                            <textarea rows={3} value={form.medicalIssue || ''} onChange={(e) => update('medicalIssue', e.target.value)} className="form-textarea" placeholder="Describe the medical condition..." />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <SearchableSelect label="Treatment Department" options={departmentsList || []} value={form.treatmentDepartmentId} onChange={(v) => update('treatmentDepartmentId', v)} onAddNew={handleAddDepartment} placeholder="Select department" />
                             <SearchableSelect label="Hospital" options={hospitalsList || []} value={form.hospitalId} onChange={(v) => update('hospitalId', v)} onAddNew={handleAddHospital} placeholder="Select hospital" />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <SearchableSelect label="Doctor" options={doctorsList || []} value={form.doctorId} onChange={(v) => update('doctorId', v)} onAddNew={handleAddDoctor} placeholder="Select doctor" />
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="form-label">Approx Amount</label>
-                                    <input type="number" value={form.approximateAmount || ''} onChange={(e) => update('approximateAmount', e.target.value)} className="form-input" placeholder="e.g. 500000" />
+                                    <input type="number" value={form.approximateAmount || ''} onChange={(e) => update('approximateAmount', e.target.value)} className="form-input" placeholder="e.g. 5000" />
                                 </div>
                                 <div>
                                     <label className="form-label">Currency</label>
@@ -202,49 +218,53 @@ export default function LeadForm({ isOpen, onClose, editLead = null }) {
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {/* Assignment Section */}
-                    <SectionHeader id="assignment" title="Assignment & Status" icon="📋" />
-                    {expandedSections.assignment && (
-                        <div className="space-y-4 py-4">
+                {/* Assignment Section */}
+                <SectionHeader id="assignment" title="Assignment & Status" icon="📋" />
+                {expandedSections.assignment && (
+                    <div className="space-y-4 py-4 px-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <SearchableSelect label="Agent / Referrer" options={agentsData?.data || []} value={form.agentId} onChange={(v) => update('agentId', v)} placeholder="Select agent" />
                             <SearchableSelect label="Assigned To (CRM User)" options={usersList || []} value={form.assignedTo} onChange={(v) => update('assignedTo', v)} placeholder="Select user" />
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="form-label">Status</label>
-                                    <select value={form.status} onChange={(e) => update('status', e.target.value)} className="form-select">
-                                        {LEAD_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="form-label">Source</label>
-                                    <select value={form.source} onChange={(e) => update('source', e.target.value)} className="form-select">
-                                        {LEAD_SOURCES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                                    </select>
-                                </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="form-label">Status</label>
+                                <select value={form.status} onChange={(e) => update('status', e.target.value)} className="form-select">
+                                    {LEAD_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="form-label">Source</label>
+                                <select value={form.source} onChange={(e) => update('source', e.target.value)} className="form-select">
+                                    {LEAD_SOURCES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                                </select>
                             </div>
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {/* Extra Details */}
-                    <SectionHeader id="extra" title="Additional Details" icon="📎" />
-                    {expandedSections.extra && (
-                        <div className="space-y-4 py-4">
-                            <div>
+                {/* Extra Details */}
+                <SectionHeader id="extra" title="Additional Details" icon="📎" />
+                {expandedSections.extra && (
+                    <div className="space-y-4 py-4 px-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="sm:col-span-1">
                                 <label className="form-label">Passport Number</label>
                                 <input value={form.passportNumber || ''} onChange={(e) => update('passportNumber', e.target.value)} className="form-input" />
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="form-label">Est. Travel Date</label>
-                                    <input type="date" value={form.estimatedTravelDate || ''} onChange={(e) => update('estimatedTravelDate', e.target.value)} className="form-input" />
-                                </div>
-                                <div>
-                                    <label className="form-label"># Attendants</label>
-                                    <input type="number" value={form.numberOfAttendants || ''} onChange={(e) => update('numberOfAttendants', e.target.value)} className="form-input" />
-                                </div>
+                            <div>
+                                <label className="form-label">Est. Travel Date</label>
+                                <input type="date" value={form.estimatedTravelDate || ''} onChange={(e) => update('estimatedTravelDate', e.target.value)} className="form-input" />
                             </div>
+                            <div>
+                                <label className="form-label"># Attendants</label>
+                                <input type="number" value={form.numberOfAttendants || ''} onChange={(e) => update('numberOfAttendants', e.target.value)} className="form-input" />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="form-label">Preferred Language</label>
                                 <select value={form.preferredLanguage || ''} onChange={(e) => update('preferredLanguage', e.target.value)} className="form-select">
@@ -253,29 +273,21 @@ export default function LeadForm({ isOpen, onClose, editLead = null }) {
                                 </select>
                             </div>
                             <div>
-                                <label className="form-label">Insurance Details</label>
-                                <textarea rows={2} value={form.insuranceDetails || ''} onChange={(e) => update('insuranceDetails', e.target.value)} className="form-textarea" />
-                            </div>
-                            <div>
                                 <label className="form-label">Referring Doctor</label>
                                 <input value={form.referringDoctor || ''} onChange={(e) => update('referringDoctor', e.target.value)} className="form-input" />
                             </div>
-                            <div>
-                                <label className="form-label">Notes</label>
-                                <textarea rows={3} value={form.notes || ''} onChange={(e) => update('notes', e.target.value)} className="form-textarea" placeholder="Any additional notes..." />
-                            </div>
                         </div>
-                    )}
-                </form>
-
-                {/* Footer */}
-                <div className="px-6 py-4 border-t border-border bg-gray-50 shrink-0 flex gap-3">
-                    <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-                    <button onClick={handleSubmit} disabled={saveLead.isPending} className="btn-primary flex-1">
-                        <Save size={16} /> {saveLead.isPending ? 'Saving...' : isEdit ? 'Update Lead' : 'Create Lead'}
-                    </button>
-                </div>
-            </div>
-        </div>
+                        <div>
+                            <label className="form-label">Insurance Details</label>
+                            <textarea rows={2} value={form.insuranceDetails || ''} onChange={(e) => update('insuranceDetails', e.target.value)} className="form-textarea" />
+                        </div>
+                        <div>
+                            <label className="form-label">Notes</label>
+                            <textarea rows={3} value={form.notes || ''} onChange={(e) => update('notes', e.target.value)} className="form-textarea" placeholder="Any additional notes..." />
+                        </div>
+                    </div>
+                )}
+            </form>
+        </Modal>
     );
 }

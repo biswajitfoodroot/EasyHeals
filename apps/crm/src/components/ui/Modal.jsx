@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 
 export default function Modal({ isOpen, onClose, title, children, size = 'md', footer }) {
@@ -9,17 +10,18 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', f
         md: 'max-w-lg',
         lg: 'max-w-2xl',
         xl: 'max-w-4xl',
+        '2xl': 'max-w-5xl',
         full: 'max-w-[95vw]',
     };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+    return ReactDOM.createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" />
 
             {/* Modal */}
             <div
-                className={`relative bg-white w-full ${sizeClasses[size]} rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in max-h-[90vh] flex flex-col z-10`}
+                className={`relative bg-white w-full ${sizeClasses[size]} rounded-2xl shadow-2xl animate-scale-in max-h-[95vh] flex flex-col z-10 transition-all`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
@@ -36,17 +38,19 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', f
                 )}
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
                     {children}
                 </div>
 
                 {/* Footer */}
                 {footer && (
-                    <div className="px-6 py-4 border-t border-border shrink-0 flex justify-end gap-3">
+                    <div className="px-6 py-4 border-t border-border shrink-0 flex justify-end gap-3 bg-gray-50 rounded-b-2xl">
                         {footer}
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
+

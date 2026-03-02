@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import Modal from '../components/ui/Modal';
 import PhoneLink from '../components/ui/PhoneLink';
 import { COUNTRY_CODES } from '../lib/constants';
-import { Plus, Search, Edit3, Trash2, Briefcase, X, KeyRound } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, Briefcase, X, KeyRound, Eye, EyeOff, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../lib/utils';
 
@@ -63,9 +63,12 @@ export default function Agents() {
                                     </div>
                                 </div>
                                 <div className="flex gap-1">
-                                    <button onClick={() => setLoginAgent(agent)} className="btn-icon" title={agent.hasPortalLogin ? "Reset Portal Password" : "Enable Portal Login"}><KeyRound size={14} className={agent.hasPortalLogin ? "text-purple-600" : "text-teal"} /></button>
+                                    <button onClick={() => setLoginAgent(agent)} className="btn-icon group" title={agent.hasPortalLogin ? "Manage Portal Access" : "Enable Portal Login"}>
+                                        <KeyRound size={14} className={agent.hasPortalLogin ? "text-teal fill-teal/10" : "text-muted hover:text-teal"} />
+                                        {agent.hasPortalLogin && <div className="absolute -top-1 -right-1 w-2 h-2 bg-teal rounded-full border border-white" />}
+                                    </button>
                                     <button onClick={() => { setEditAgent(agent); setShowModal(true); }} className="btn-icon"><Edit3 size={14} className="text-muted" /></button>
-                                    <button onClick={() => { if (confirm('Deactivate?')) deleteMutation.mutate(agent.id); }} className="btn-icon"><Trash2 size={14} className="text-red-400" /></button>
+                                    <button onClick={() => { if (confirm('Deactivate?')) deleteMutation.mutate(agent.id); }} className="btn-icon hover:bg-red-50"><Trash2 size={14} className="text-red-400" /></button>
                                 </div>
                             </div>
 
@@ -87,6 +90,13 @@ export default function Agents() {
                                 {agent.country && <span>📍 {agent.country}</span>}
                                 {agent.email && <span>✉️ {agent.email}</span>}
                             </div>
+
+                            {agent.hasPortalLogin && agent.portalEmail && (
+                                <div className="mt-2 text-[10px] bg-teal/5 text-teal px-2 py-1 rounded-lg border border-teal/10 inline-flex items-center gap-1.5">
+                                    <Shield size={10} />
+                                    Portal: <strong>{agent.portalEmail}</strong>
+                                </div>
+                            )}
 
                             {agent.commissionType && (
                                 <div className="mt-3 pt-3 border-t border-border text-xs">
@@ -212,51 +222,147 @@ function AgentFormModal({ agent, onClose }) {
 }
 
 function AgentPortalModal({ agent, onClose }) {
-    const [email, setEmail] = useState(agent.email || '');
+    const hasLogin = !!agent.hasPortalLogin;
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const queryClient = useQueryClient();
-    const isReset = !!agent.hasPortalLogin;
 
-    const mutation = useMutation({
-        mutationFn: (data) => isReset
-            ? api.post(`/agents/${agent.id}/reset-password`, data)
-            : api.post(`/agents/${agent.id}/create-login`, data),
+    // Reset form when modal opens or agent changes
+    useEffect(() => {
+        if (agent) {
+            setEmail(agent.portalEmail || agent.email || '');
+            setPassword(hasLogin ? '••••••••' : '');
+        }
+    }, [agent, hasLogin]);
+
+    const actionMutation = useMutation({
+        mutationFn: (data) => api.post(`/agents/${agent.id}/create-login`, data), // handles reset too if implemented that way, but let's be explicit
         onSuccess: () => {
-            toast.success(isReset ? `Password reset for ${agent.name}` : `Portal login created for ${agent.name}`);
+            toast.success(`Portal login updated for ${agent.name}`);
             queryClient.invalidateQueries({ queryKey: ['agents'] });
             onClose();
         },
         onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
     });
 
-    const handleAction = () => {
-        if (!password || password.length < 6) {
-            toast.error('Password must be at least 6 characters');
-            return;
-        }
-        mutation.mutate({ email, password });
-    };
+    const resetMutation = useMutation({
+        mutationFn: (data) => api.post(`/agents/${agent.id}/reset-password`, data),
+        onSuccess: () => {
+            toast.success(`Password reset for ${agent.name}`);
+            onClose();
+        },
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: () => api.delete(`/agents/${agent.id}/portal-login`),
+        onSuccess: () => {
+            toast.success(`Portal access removed for ${agent.name}`);
+            queryClient.invalidateQueries({ queryKey: ['agents'] });
+            onClose();
+        },
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed to remove')),
+    });
 
     return (
-        <Modal isOpen={true} onClose={onClose} title={isReset ? "Reset Portal Password" : "Enable Portal Login"} size="sm"
-            footer={<><button onClick={onClose} className="btn-secondary">Cancel</button><button onClick={handleAction} disabled={(isReset ? false : !email) || !password || mutation.isPending} className="btn-primary">{mutation.isPending ? 'Processing...' : (isReset ? 'Reset Password' : 'Create Login')}</button></>}>
-            <div className="space-y-4">
-                {isReset ? (
-                    <p className="text-sm text-muted">Reset the portal password for <strong>{agent.name}</strong>.</p>
-                ) : (
-                    <>
-                        <p className="text-sm text-muted">Create portal login credentials for <strong>{agent.name}</strong>.</p>
-                        <div>
-                            <label className="form-label">Email</label>
-                            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input" placeholder="agent@email.com" />
-                        </div>
-                    </>
-                )}
-                <div>
-                    <label className="form-label">New Password (min 6 chars)</label>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="form-input" placeholder="Set password" />
+        <Modal
+            isOpen={true}
+            onClose={onClose}
+            title={hasLogin ? "Manage Portal Access" : "Enable Portal Login"}
+            size="sm"
+            footer={
+                <div className="flex justify-between w-full">
+                    {hasLogin ? (
+                        <button
+                            onClick={() => { if (confirm('Are you sure? This will immediately disable portal access.')) deleteMutation.mutate(); }}
+                            className="text-red-500 text-xs font-bold hover:underline"
+                        >
+                            Revoke Access
+                        </button>
+                    ) : <div />}
+                    <div className="flex gap-2">
+                        <button onClick={onClose} className="btn-secondary">Cancel</button>
+                        <button
+                            onClick={() => {
+                                if (hasLogin) resetMutation.mutate({ password });
+                                else actionMutation.mutate({ email, password });
+                            }}
+                            disabled={mutationLocked()}
+                            className="btn-primary"
+                        >
+                            {hasLogin ? 'Update Password' : 'Create Login'}
+                        </button>
+                    </div>
                 </div>
+            }
+        >
+            <div className="space-y-4">
+                <div className="text-sm text-center mb-4">
+                    <div className="w-12 h-12 bg-teal-pale rounded-full flex items-center justify-center text-teal mx-auto mb-2">
+                        <KeyRound size={24} />
+                    </div>
+                    <p className="font-semibold text-text">{agent.name}</p>
+                    <p className="text-xs text-muted">Agent Portal Account</p>
+                </div>
+
+                {!hasLogin ? (
+                    <div>
+                        <label className="form-label">Portal Email (Username)</label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="form-input"
+                            placeholder="agent@email.com"
+                            autoComplete="off"
+                        />
+                    </div>
+                ) : (
+                    <div className="bg-gray-50 p-3 rounded-xl border border-border">
+                        <label className="text-[10px] font-bold text-muted uppercase block mb-1">Current Username</label>
+                        <div className="font-medium text-sm">{agent.portalEmail}</div>
+                    </div>
+                )}
+
+                <div className="space-y-2">
+                    <label className="form-label">{hasLogin ? 'New Password' : 'Password (min 6 chars)'}</label>
+                    <div className="relative">
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="form-input pr-10"
+                            placeholder="Set password"
+                            autoComplete="new-password"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors"
+                        >
+                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                    </div>
+                </div>
+
+                {hasLogin && (
+                    <p className="text-[10px] text-muted italic text-center">
+                        Updating the password will not affect existing lead data.
+                    </p>
+                )}
             </div>
         </Modal>
     );
+
+    function mutationLocked() {
+        if (actionMutation.isPending || resetMutation.isPending || deleteMutation.isPending) return true;
+
+        // If it's the dummy password, we don't want to allow update
+        if (password === '••••••••') return true;
+
+        if (!password || password.length < 6) return true;
+        if (!hasLogin && !email) return true;
+        return false;
+    }
 }

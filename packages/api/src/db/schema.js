@@ -157,6 +157,12 @@ export const leads = sqliteTable('leads', {
   lastContactedAt: integer('last_contacted_at', { mode: 'timestamp' }),
   followUpAt: integer('follow_up_at', { mode: 'timestamp' }),
 
+  // Visa letter data
+  visaLetterData: text('visa_letter_data', { mode: 'json' }), // {patient:{...}, attendant1:{...}, attendant2:{...}}
+  visaDataFrozen: integer('visa_data_frozen', { mode: 'boolean' }).default(false),
+  visaDataFrozenBy: text('visa_data_frozen_by').references(() => users.id),
+  visaDataFrozenAt: integer('visa_data_frozen_at', { mode: 'timestamp' }),
+
   // Notes & archive
   notes: text('notes'),
   isArchived: integer('is_archived', { mode: 'boolean' }).default(false),

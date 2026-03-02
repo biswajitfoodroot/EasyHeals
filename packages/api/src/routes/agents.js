@@ -1,7 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { db } from '../db/index.js';
-import { agents, leads, activities } from '../db/schema.js';
+import { agents, leads, activities, users } from '../db/schema.js';
 import { eq, like, and, desc, count, sql } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -50,27 +50,56 @@ router.get('/', authenticateToken, async (req, res) => {
 
         const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-        const [results, totalResult] = await Promise.all([
+        console.log(`[API] Fetching agents (search: "${search || ''}", active: "${active || 'default'}")`);
+
+        const [results, countRes] = await Promise.all([
             db.select({
-                ...agents,
-                hasPortalLogin: sql`EXISTS (SELECT 1 FROM users WHERE linkedAgentId = ${agents.id} AND role = 'agent')`
+                id: agents.id,
+                name: agents.name,
+                companyName: agents.companyName,
+                phone: agents.phone,
+                countryCode: agents.countryCode,
+                phoneNumbers: agents.phoneNumbers,
+                email: agents.email,
+                country: agents.country,
+                city: agents.city,
+                address: agents.address,
+                commissionType: agents.commissionType,
+                commissionValue: agents.commissionValue,
+                panNumber: agents.panNumber,
+                bankName: agents.bankName,
+                bankAccount: agents.bankAccount,
+                ifscCode: agents.ifscCode,
+                notes: agents.notes,
+                isActive: agents.isActive,
+                createdAt: agents.createdAt,
+                updatedAt: agents.updatedAt,
+                // Using COUNT or EXISTS logic, but JOIN is safer for Drizzle/SQLite correlation
+                hasPortalLogin: sql`COUNT(${users.id})`,
+                portalEmail: sql`MAX(${users.email})` // MAX gives us one email if multiple exist
             }).from(agents)
+                .leftJoin(users, sql`${users.linkedAgentId} = ${agents.id} AND ${users.role} = 'agent'`)
                 .where(whereClause)
+                .groupBy(agents.id)
                 .orderBy(agents.name)
                 .limit(Number(limit))
                 .offset(offset),
-            db.select({ count: count() }).from(agents).where(whereClause)
+            db.select({ total: count() }).from(agents).where(whereClause)
         ]);
+
+        const total = countRes[0]?.total || 0;
+        console.log(`[API] Found ${results.length} agents. Total in DB matching filter: ${total}`);
 
         res.json({
             data: results,
-            total: totalResult[0].count,
+            total,
             page: Number(page),
-            totalPages: Math.ceil(totalResult[0].count / limit)
+            totalPages: Math.ceil(total / limit)
         });
     } catch (error) {
+        console.error('[API] Error fetching agents:', error);
         logger.error('Error fetching agents:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 
@@ -268,6 +297,33 @@ router.post('/:id/reset-password', authenticateToken, async (req, res) => {
         res.json({ message: 'Password reset successfully' });
     } catch (error) {
         logger.error('Error resetting agent password:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// DELETE /agents/:id/portal-login — Remove portal access for an agent
+router.delete('/:id/portal-login', authenticateToken, async (req, res) => {
+    try {
+        const { users } = await import('../db/schema.js');
+
+        const [deleted] = await db.delete(users)
+            .where(and(eq(users.linkedAgentId, req.params.id), eq(users.role, 'agent')))
+            .returning({ id: users.id, email: users.email });
+
+        if (!deleted) {
+            return res.status(404).json({ error: 'Portal login not found for this agent' });
+        }
+
+        await db.insert(activities).values({
+            type: 'agent_login_deleted',
+            description: `Portal login access removed for: ${deleted.email}`,
+            performedBy: req.user.id,
+            metadata: { agentId: req.params.id, userId: deleted.id },
+        });
+
+        res.json({ message: 'Portal access removed successfully' });
+    } catch (error) {
+        logger.error('Error deleting agent portal login:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });

@@ -56,7 +56,7 @@ const tools = [
 
 export async function chatWithGemini(userMessage, chatHistory = []) {
     const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         systemInstruction: SYSTEM_PROMPT,
         tools: tools
     });
@@ -105,7 +105,7 @@ export async function chatWithGemini(userMessage, chatHistory = []) {
 
 // Prescription Analysis remained same as before (Multimodal)
 export async function analysePrescriptionWithGemini(fileBuffer, mimeType) {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `You are a medical document analyser for EasyHeals. Analyse this prescription image and return ONLY a JSON object with medication names, likely condition, warnings, recommended specialist, and confidence. If not a prescription, return an error.`;
 
     const result = await model.generateContent([

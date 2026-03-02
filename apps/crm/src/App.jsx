@@ -19,6 +19,7 @@ import ArchivePage from './pages/Archive';
 import Reports from './pages/Reports';
 import UsersPage from './pages/Users';
 import ClosedCases from './pages/ClosedCases';
+import Settings from './pages/Settings';
 
 // Agent Portal
 import AgentLogin from './pages/AgentLogin';
@@ -40,7 +41,7 @@ function AppLayout({ children }) {
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-bg">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+      <main className="flex-1 min-h-0 flex flex-col pb-20 lg:pb-0">
         {children}
       </main>
     </div>
@@ -81,6 +82,7 @@ export default function App() {
             <Route path="/archive" element={<AppLayout><ArchivePage /></AppLayout>} />
             <Route path="/reports" element={<AppLayout><Reports /></AppLayout>} />
             <Route path="/closed-cases" element={<AppLayout><ClosedCases /></AppLayout>} />
+            <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
           </Route>
 
           {/* Admin-only routes */}

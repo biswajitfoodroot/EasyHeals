@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     BarChart3, Users, LayoutGrid, MessageSquare,
     Settings, LogOut, UserCog, Building2, FileText,
-    Archive, Menu, X,
+    Archive, Menu, X, Plus,
     Briefcase, Search, CheckCircle, TrendingUp
 } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
@@ -29,10 +29,11 @@ const adminNavItems = [
 ];
 
 export default function Sidebar() {
-    const { user, logout, isAdmin, hasPermission } = useAuth();
+    const { user, logout, hasPermission } = useAuth();
     const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
     const navigate = useNavigate();
 
+    const isAdmin = user?.role === 'owner' || user?.role === 'admin';
     const filterByPermission = (items) => items.filter(item => hasPermission(item.permission));
 
     const visibleMain = filterByPermission(mainNavItems);

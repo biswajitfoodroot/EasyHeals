@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api';
 import StatusBadge from '../ui/StatusBadge';
@@ -10,15 +10,17 @@ import {
     X, Edit3, Archive, MessageCircle, Mail, MapPin,
     Calendar, DollarSign, Building2, Stethoscope, User,
     FileText, Clock, Send, Plus, Briefcase, ChevronDown,
-    CheckCircle, XCircle, Upload, Printer, Users, Plane, Download
+    CheckCircle, XCircle, Upload, Printer, Users, Plane, Download,
+    Lock, Unlock, Save, Shield, Scan, Camera, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useAuth from '../../hooks/useAuth';
 
 export default function LeadDetail({ lead, onClose, onEdit }) {
     const queryClient = useQueryClient();
     const [noteText, setNoteText] = useState('');
     const [selectedDocType, setSelectedDocType] = useState('other');
-    const [activeTab, setActiveTab] = useState('details');
+    const [activeTab, setActiveTab] = useState('visa');
     const [showWaModal, setShowWaModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectForm, setShowRejectForm] = useState(false);
@@ -89,7 +91,7 @@ export default function LeadDetail({ lead, onClose, onEdit }) {
     if (!lead) return null;
 
     const tabs = [
-        { id: 'details', label: 'Details' },
+        { id: 'visa', label: '📋 Visa Info' },
         { id: 'attendants', label: `Attendants (${leadAttendants?.length || 0})` },
         { id: 'documents', label: `Docs (${documents?.length || 0})` },
         { id: 'activity', label: 'Activity' },
@@ -267,6 +269,10 @@ export default function LeadDetail({ lead, onClose, onEdit }) {
                     </div>
                 )}
 
+                {activeTab === 'visa' && (
+                    <VisaLetterSection lead={lead} />
+                )}
+
                 {activeTab === 'attendants' && (
                     <div className="space-y-4">
                         {(!leadAttendants || leadAttendants.length === 0) ? (
@@ -431,6 +437,516 @@ function WhatsAppTemplateModal({ lead, onClose }) {
                     <button onClick={sendMessage} className="flex-1 btn-sm bg-emerald-500 text-white hover:bg-emerald-600 rounded-xl font-bold flex items-center justify-center gap-2 py-2.5 transition-colors">
                         <Send size={14} /> Open WhatsApp
                     </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Visa Letter Data Section ────────────────────────────────────────────────
+
+const EMPTY_PERSON = { surname: '', givenName: '', passportNo: '', dateOfBirth: '', gender: '', nationality: '', address: '', contactNumber: '', email: '' };
+const EMPTY_PATIENT = { ...EMPTY_PERSON, doctorSpeciality: '', departmentName: '', appointmentDate: '', doctorMeetName: '' };
+const EMPTY_ATTENDANT = { ...EMPTY_PERSON, relationship: '' };
+
+const GENDERS = [
+    { value: 'male', label: 'Male' },
+    { value: 'female', label: 'Female' },
+    { value: 'other', label: 'Other' }
+];
+
+function VisaLetterSection({ lead }) {
+    const queryClient = useQueryClient();
+    const user = useAuth(state => state.user);
+    const canFreeze = ['owner', 'admin', 'advisor'].includes(user?.role);
+    const isFrozen = !!lead.visaDataFrozen;
+
+    // Initialize with auto-populated values from lead
+    const existing = lead.visaLetterData || {};
+
+    // Split name for auto-population
+    const nameParts = (lead.name || '').split(' ');
+    const autoGivenName = nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : lead.name || '';
+    const autoSurname = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+
+    const autoPatient = {
+        ...EMPTY_PATIENT,
+        surname: autoSurname,
+        givenName: autoGivenName,
+        dateOfBirth: lead.dateOfBirth || '',
+        gender: lead.gender || '',
+        passportNo: lead.passportNumber || '',
+        contactNumber: lead.phone || '',
+        email: lead.email || '',
+        nationality: lead.country || '',
+        address: lead.nativeAddress || '',
+        departmentName: lead.departmentName || '',
+        appointmentDate: lead.appointmentDate || '',
+        doctorMeetName: lead.doctorName || '',
+    };
+
+    const [data, setData] = useState({
+        patient: { ...autoPatient, ...(existing.patient || {}) },
+        attendant1: { ...EMPTY_ATTENDANT, ...(existing.attendant1 || {}) },
+        attendant2: { ...EMPTY_ATTENDANT, ...(existing.attendant2 || {}) },
+        attendant3: { ...EMPTY_ATTENDANT, ...(existing.attendant3 || {}) },
+    });
+
+    // CRITICAL: Sync local state when lead prop changes (e.g. switching between leads)
+    useEffect(() => {
+        const revisedExisting = lead.visaLetterData || {};
+        const revisedNameParts = (lead.name || '').split(' ');
+        const revGiven = revisedNameParts.length > 1 ? revisedNameParts.slice(0, -1).join(' ') : lead.name || '';
+        const revSur = revisedNameParts.length > 1 ? revisedNameParts[revisedNameParts.length - 1] : '';
+
+        const revAuto = {
+            ...EMPTY_PATIENT,
+            surname: revSur,
+            givenName: revGiven,
+            dateOfBirth: lead.dateOfBirth || '',
+            gender: lead.gender || '',
+            passportNo: lead.passportNumber || '',
+            contactNumber: lead.phone || '',
+            email: lead.email || '',
+            nationality: lead.country || '',
+            address: lead.nativeAddress || '',
+            departmentName: lead.departmentName || '',
+            appointmentDate: lead.appointmentDate || '',
+            doctorMeetName: lead.doctorName || '',
+        };
+
+        setData({
+            patient: { ...revAuto, ...(revisedExisting.patient || {}) },
+            attendant1: { ...EMPTY_ATTENDANT, ...(revisedExisting.attendant1 || {}) },
+            attendant2: { ...EMPTY_ATTENDANT, ...(revisedExisting.attendant2 || {}) },
+            attendant3: { ...EMPTY_ATTENDANT, ...(revisedExisting.attendant3 || {}) },
+        });
+        setEditing(false); // Reset editing mode when switching leads
+    }, [lead.id, lead.visaLetterData, lead.name]);
+
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [scanning, setScanning] = useState(null);
+    const [showPreview, setShowPreview] = useState(false);
+
+    const handleScan = async (sectionKey, file) => {
+        setScanning(sectionKey);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await api.post('/ocr/scan-passport', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            const ocr = res.data;
+            setData(prev => ({
+                ...prev,
+                [sectionKey]: {
+                    ...prev[sectionKey],
+                    surname: ocr.surname || prev[sectionKey].surname,
+                    givenName: ocr.givenName || prev[sectionKey].givenName,
+                    passportNo: ocr.passportNo || prev[sectionKey].passportNo,
+                    dateOfBirth: ocr.dob || prev[sectionKey].dateOfBirth,
+                    gender: ocr.gender || prev[sectionKey].gender,
+                    nationality: ocr.nationality || prev[sectionKey].nationality,
+                    address: ocr.address || prev[sectionKey].address,
+                }
+            }));
+            setEditing(true); // Auto-enter edit mode so user sees the Save button
+            toast.success('Document scanned and fields auto-filled. Don\'t forget to SAVE!');
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to scan document');
+        } finally {
+            setScanning(null);
+        }
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const fullName = `${data.patient.givenName} ${data.patient.surname}`.trim();
+            const payload = {
+                visaLetterData: data,
+                // Sync patient data to top-level lead fields
+                name: fullName,
+                passportNumber: data.patient.passportNo,
+                dateOfBirth: data.patient.dateOfBirth,
+                gender: data.patient.gender,
+                country: data.patient.nationality,
+                nativeAddress: data.patient.address,
+                phone: data.patient.contactNumber,
+                email: data.patient.email,
+
+                // Sync new fields
+                departmentName: data.patient.departmentName,
+                appointmentDate: data.patient.appointmentDate,
+                doctorName: data.patient.doctorMeetName,
+            };
+
+            await api.patch(`/leads/${lead.id}`, payload);
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
+            queryClient.invalidateQueries({ queryKey: ['lead', lead.id] });
+            toast.success('Visa information saved and lead profile updated');
+            setEditing(false);
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to save');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleFreeze = async (freeze) => {
+        try {
+            await api.post(`/leads/${lead.id}/visa-data/${freeze ? 'freeze' : 'unfreeze'}`);
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
+            queryClient.invalidateQueries({ queryKey: ['lead', lead.id] });
+            toast.success(freeze ? 'Visa data locked' : 'Visa data unlocked');
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed');
+        }
+    };
+
+    const updateField = (section, field, value) => {
+        setData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
+    };
+
+    const countFilled = (obj) => {
+        return Object.values(obj).filter(v => v && String(v).trim()).length;
+    };
+
+    const RELATIONSHIPS = [
+        { value: 'spouse', label: 'Spouse' },
+        { value: 'parent', label: 'Parent' },
+        { value: 'child', label: 'Child' },
+        { value: 'sibling', label: 'Sibling' },
+        { value: 'relative', label: 'Relative' },
+        { value: 'friend', label: 'Friend' },
+        { value: 'other', label: 'Other' }
+    ];
+
+    const patientFields = {
+        surname: { label: 'Patient Surname', required: true },
+        givenName: { label: 'Patient Given Name', required: true },
+        gender: { label: 'Gender', type: 'select', options: GENDERS, required: true },
+        dateOfBirth: { label: 'Date of Birth', type: 'date', required: true },
+        nationality: { label: 'Nationality', required: true },
+        passportNo: { label: 'Passport No', required: true, pattern: '[A-Z0-9]{6,12}' },
+        address: { label: 'Address in Native Country', fullWidth: true, required: true },
+        contactNumber: { label: 'Contact Number', required: true },
+        email: { label: 'Email id', type: 'email', required: true },
+        doctorSpeciality: { label: "Diagnosis/ Proposed Treatment", required: true },
+        departmentName: { label: "Department Name" },
+        appointmentDate: { label: "Appointment Date", type: "date" },
+        doctorMeetName: { label: "Dr to meet" },
+    };
+
+    const attendantFields = {
+        surname: { label: 'Attendant Surname' },
+        givenName: { label: 'Attendant Given Name' },
+        passportNo: { label: 'Attendant Passport No', pattern: '[A-Z0-9]{6,12}' },
+        gender: { label: 'Gender', type: 'select', options: GENDERS },
+        dateOfBirth: { label: 'Date of Birth', type: 'date' },
+        address: { label: 'Address in Native Country', fullWidth: true },
+        contactNumber: { label: 'Contact Number' },
+        email: { label: 'Email id', type: 'email' },
+        relationship: { label: 'Relationship between Patient & Attendant', type: 'select', options: RELATIONSHIPS },
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* Header with freeze/edit controls */}
+            <div className="flex flex-col gap-3 py-2 border-b border-gray-100 mb-2">
+                <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-bold text-muted uppercase tracking-widest flex items-center gap-2">
+                        <Shield size={12} className="text-teal" /> Visa Letter Management
+                    </h4>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {canFreeze && (
+                        <button
+                            onClick={() => handleFreeze(!isFrozen)}
+                            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold transition-all shadow-sm ${isFrozen
+                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200'
+                                : 'bg-gray-100 text-slate-600 hover:bg-gray-200 border border-gray-200'
+                                }`}
+                        >
+                            {isFrozen ? <><Unlock size={14} /> Unfreeze Data</> : <><Lock size={14} /> Lock / Freeze</>}
+                        </button>
+                    )}
+                    {!isFrozen && (
+                        editing ? (
+                            <button onClick={handleSave} disabled={saving}
+                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold bg-teal text-white hover:bg-teal-dark transition-all shadow-sm">
+                                <Save size={14} /> {saving ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        ) : (
+                            <button onClick={() => setEditing(true)}
+                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold bg-teal-50 text-teal hover:bg-teal-100 border border-teal-100 transition-all shadow-sm">
+                                <Edit3 size={14} /> Edit Info
+                            </button>
+                        )
+                    )}
+                    <button
+                        onClick={() => setShowPreview(true)}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-all shadow-sm"
+                    >
+                        <FileText size={14} /> View Letter
+                    </button>
+                </div>
+            </div>
+
+            {showPreview && (
+                <VisaLetterPreview lead={lead} data={data} onClose={() => setShowPreview(false)} />
+            )}
+
+            {/* Frozen Banner */}
+            {isFrozen && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700">
+                    <Lock size={14} />
+                    <span><strong>Locked</strong> — This information has been frozen and cannot be edited.</span>
+                </div>
+            )}
+
+            <PersonCard
+                title="Patient Details" sectionKey="patient" fields={patientFields} icon="🧑‍⚕️"
+                data={data} setData={setData} editing={editing} isFrozen={isFrozen}
+                scanning={scanning} processFile={handleScan}
+            />
+            <PersonCard
+                title="Details of Attendant 1" sectionKey="attendant1" fields={attendantFields} icon="👤"
+                data={data} setData={setData} editing={editing} isFrozen={isFrozen}
+                scanning={scanning} processFile={handleScan}
+            />
+            <PersonCard
+                title="Details of Attendant 2" sectionKey="attendant2" fields={attendantFields} icon="👤"
+                data={data} setData={setData} editing={editing} isFrozen={isFrozen}
+                scanning={scanning} processFile={handleScan}
+            />
+            <PersonCard
+                title="Details of Attendant 3" sectionKey="attendant3" fields={attendantFields} icon="👤"
+                data={data} setData={setData} editing={editing} isFrozen={isFrozen}
+                scanning={scanning} processFile={handleScan}
+            />
+
+            {editing && !isFrozen && (
+                <button onClick={handleSave} disabled={saving}
+                    className="w-full btn-primary py-3 text-sm font-bold flex items-center justify-center gap-2">
+                    <Save size={16} /> {saving ? 'Saving Visa Data...' : 'Save All Visa Information'}
+                </button>
+            )}
+        </div>
+    );
+}
+
+// ─── Visa Letter Preview Modal ───────────────────────────────────────────────
+
+// ─── Person Card Component ───────────────────────────────────────────────
+
+const PersonCard = ({ title, sectionKey, data, setData, fields, icon, editing, isFrozen, scanning, processFile }) => {
+    const sectionData = data[sectionKey];
+    const fileInputRef = React.useRef();
+    const [isDragOver, setIsDragOver] = React.useState(false);
+
+    const updateField = (sKey, fKey, val) => {
+        setData(prev => ({
+            ...prev,
+            [sKey]: { ...prev[sKey], [fKey]: val }
+        }));
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        processFile(sectionKey, file);
+    };
+
+    const handlePaste = (e) => {
+        if (isFrozen) return;
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                processFile(sectionKey, file);
+                toast('📋 Pasted image — scanning...', { duration: 1500 });
+                break;
+            }
+        }
+    };
+
+    return (
+        <div
+            className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden mb-4"
+            onPaste={handlePaste}
+        >
+            <div className="px-4 py-3 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                <h5 className="text-xs font-bold text-slate-600 flex items-center gap-2">
+                    <span className="text-base">{icon}</span> {title}
+                </h5>
+                {!isFrozen && (
+                    <div className="flex gap-2 items-center">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            className="hidden"
+                            accept="image/*,.pdf"
+                            onChange={(e) => e.target.files[0] && processFile(sectionKey, e.target.files[0])}
+                        />
+                        <div
+                            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                            onDragLeave={() => setIsDragOver(false)}
+                            onDrop={handleDrop}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-2 border-dashed transition-all cursor-pointer text-[10px] font-bold
+                                ${isDragOver
+                                    ? 'border-indigo-400 bg-indigo-50 text-indigo-700 scale-105'
+                                    : 'border-indigo-200 bg-indigo-50/60 text-indigo-600 hover:border-indigo-400 hover:bg-indigo-100'
+                                }`}
+                            onClick={() => fileInputRef.current.click()}
+                        >
+                            {scanning === sectionKey
+                                ? <Loader2 size={12} className="animate-spin" />
+                                : <Scan size={12} />
+                            }
+                            {scanning === sectionKey ? 'Scanning...' : isDragOver ? 'Drop file' : 'Scan Passport'}
+                        </div>
+                    </div>
+                )}
+            </div>
+            {!isFrozen && (
+                <div className="px-4 pt-2 pb-0 text-[10px] text-muted flex items-center gap-1">
+                    <Camera size={10} />
+                    <span>Tip: <kbd className="bg-gray-100 px-1 rounded font-mono">Ctrl+V</kbd> to paste, or drag & drop</span>
+                </div>
+            )}
+            <div className={`p-4 grid grid-cols-2 gap-4 ${!isFrozen ? 'pt-2' : ''}`}>
+                {Object.entries(fields).map(([key, config]) => (
+                    <div key={key} className={config.fullWidth ? 'col-span-2' : ''}>
+                        <label className="block text-[10px] font-bold text-muted mb-1 uppercase tracking-tight">
+                            {config.label}{config.required && <span className="text-red-500 ml-0.5">*</span>}
+                        </label>
+                        {!editing || isFrozen ? (
+                            <div className="text-sm text-slate-700 min-h-[1.5rem] border-b border-gray-50 pb-1">
+                                {config.type === 'select'
+                                    ? config.options.find(o => o.value === sectionData[key])?.label || '—'
+                                    : sectionData[key] || '—'}
+                            </div>
+                        ) : config.type === 'select' ? (
+                            <select
+                                value={sectionData[key] || ''}
+                                onChange={e => updateField(sectionKey, key, e.target.value)}
+                                className={`w-full border rounded-lg px-3 py-1.5 text-sm ${config.required && !sectionData[key] ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
+                            >
+                                <option value="">Select...</option>
+                                {config.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                        ) : (
+                            <input
+                                type={config.type || 'text'}
+                                value={sectionData[key] || ''}
+                                onChange={e => updateField(sectionKey, key, e.target.value)}
+                                className={`w-full border rounded-lg px-3 py-1.5 text-sm ${config.required && !sectionData[key] ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
+                            />
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+function VisaLetterPreview({ lead, data, onClose }) {
+    const printRef = React.useRef();
+
+    const handlePrint = () => {
+        const content = printRef.current;
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>Visa Letter - ${data.patient.givenName} ${data.patient.surname}</title>
+                <style>
+                    body { font-family: 'Times New Roman', serif; padding: 40px; color: #000; line-height: 1.4; font-size: 13px; }
+                    table { width: 100%; border-collapse: collapse; margin-bottom: 15px; table-layout: fixed; }
+                    th, td { border: 1px solid #000; padding: 6px 8px; text-align: left; word-wrap: break-word; }
+                    th { background: #f9f9f9; width: 45%; font-weight: bold; }
+                    @media print { body { padding: 0; } .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                ${content.innerHTML}
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); }, 500);
+    };
+
+    const renderTable = (person, title, type = 'attendant') => {
+        if (!person || (!person.surname && !person.givenName && !person.passportNo)) return null;
+
+        const rows = type === 'patient' ? [
+            ['Patient Surname *', person.surname],
+            ['Patient Given Name *', person.givenName],
+            ['Gender *', person.gender],
+            ['Date of Birth (DD/MM/YYYY) *', person.dateOfBirth ? new Date(person.dateOfBirth).toLocaleDateString('en-GB') : ''],
+            ['Nationality *', person.nationality],
+            ['Passport No *', person.passportNo],
+            ['Address *', person.address],
+            ['Contact Number *', person.contactNumber],
+            ['Email id *', person.email],
+            ['Diagnosis/ Proposed Treatment *', person.doctorSpeciality],
+            ['Department Name *', person.departmentName || 'Medical'],
+            ['Appointment date *', person.appointmentDate ? new Date(person.appointmentDate).toLocaleDateString('en-GB') : ''],
+            ['Dr to meet *', person.doctorMeetName || 'Senior Consultant'],
+        ] : [
+            [`${title} Surname *`, person.surname],
+            [`${title} Given Name *`, person.givenName],
+            [`${title} Passport No *`, person.passportNo],
+            ['Gender *', person.gender],
+            ['Date of Birth (DD/MM/YYYY) *', person.dateOfBirth ? new Date(person.dateOfBirth).toLocaleDateString('en-GB') : ''],
+            ['Address *', person.address],
+            ['Relationship between Patient & Attendant', person.relationship],
+        ];
+
+        return (
+            <div key={title} className="mb-6">
+                <table className="w-full text-sm">
+                    <tbody>
+                        {rows.map(([label, value]) => (
+                            <tr key={label}>
+                                <th className="border border-black bg-gray-50 text-left px-3 py-2 font-bold">{label}</th>
+                                <td className="border border-black px-3 py-2">{value || ''}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/70 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-gray-50">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                        <FileText size={18} className="text-teal" /> Visa Invitation Letter Preview
+                    </h3>
+                    <div className="flex gap-2">
+                        <button onClick={handlePrint} className="btn-primary flex items-center gap-2 shadow-lg">
+                            <Printer size={16} /> Print / PDF
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-lg"><X size={18} /></button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-8 bg-gray-200 flex justify-center">
+                    <div ref={printRef} className="bg-white w-[210mm] min-h-[297mm] p-[15mm] shadow-xl text-black text-left">
+                        {renderTable(data.patient, 'Patient Details', 'patient')}
+                        {renderTable(data.attendant1, 'Attendant 1')}
+                        {renderTable(data.attendant2, 'Attendant 2')}
+                        {renderTable(data.attendant3, 'Attendant 3')}
+                    </div>
                 </div>
             </div>
         </div>

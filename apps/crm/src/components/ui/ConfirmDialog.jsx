@@ -1,9 +1,7 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import Modal from './Modal';
 
 export default function ConfirmDialog({ isOpen, onClose, onConfirm, title, message, confirmLabel = 'Confirm', confirmColor = 'red', loading = false }) {
-    if (!isOpen) return null;
-
     const colorClasses = {
         red: 'bg-red-600 hover:bg-red-700 text-white',
         teal: 'bg-teal hover:bg-teal-light text-white',
@@ -11,17 +9,13 @@ export default function ConfirmDialog({ isOpen, onClose, onConfirm, title, messa
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm animate-fade-in" />
-
-            <div
-                className="relative bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl animate-slide-up sm:animate-scale-in z-10 p-6"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <h3 className="text-lg font-bold mb-2">{title}</h3>
-                <p className="text-sm text-muted mb-6">{message}</p>
-
-                <div className="flex gap-3 justify-end">
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={title}
+            size="sm"
+            footer={
+                <>
                     <button
                         onClick={onClose}
                         className="px-4 py-2.5 text-sm font-semibold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
@@ -36,8 +30,11 @@ export default function ConfirmDialog({ isOpen, onClose, onConfirm, title, messa
                     >
                         {loading ? 'Processing...' : confirmLabel}
                     </button>
-                </div>
-            </div>
-        </div>
+                </>
+            }
+        >
+            <p className="text-sm text-muted">{message}</p>
+        </Modal>
     );
 }
+

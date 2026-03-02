@@ -86,6 +86,7 @@ export const USER_ROLES = [
     { value: 'admin', label: 'Admin', description: 'Full access + user management', bgClass: 'bg-purple-100 text-purple-700' },
     { value: 'advisor', label: 'Advisor', description: 'Can manage leads and communicate', bgClass: 'bg-blue-100 text-blue-700' },
     { value: 'viewer', label: 'Viewer', description: 'Read-only access', bgClass: 'bg-gray-100 text-gray-600' },
+    { value: 'agent', label: 'Agent', description: 'Limited access (Agent Portal only)', bgClass: 'bg-teal-pale text-teal' },
 ];
 
 // ─── Permissions Map ─────────────────────────────────────────────────────────

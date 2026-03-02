@@ -4,7 +4,7 @@ import api from '../lib/api';
 import Modal from '../components/ui/Modal';
 import { USER_ROLES, PERMISSION_SECTIONS } from '../lib/constants';
 import { formatDateTime, getErrorMessage } from '../lib/utils';
-import { Plus, Shield, UserCog, Edit3, Lock, AlertCircle } from 'lucide-react';
+import { Plus, Shield, UserCog, Edit3, Lock, AlertCircle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const DEFAULT_PERMISSIONS = {
@@ -25,10 +25,13 @@ export default function UsersPage() {
         queryFn: () => api.get('/users').then(r => r.data),
     });
 
-    const resetPwd = useMutation({
-        mutationFn: ({ userId, newPassword }) => api.post(`/users/${userId}/reset-password`, { newPassword }),
-        onSuccess: () => { toast.success('Password reset'); setShowResetPwd(null); setNewPwd(''); },
-        onError: (err) => toast.error(getErrorMessage(err, 'Failed')),
+    const deleteUser = useMutation({
+        mutationFn: (userId) => api.delete(`/users/${userId}`),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            toast.success('User deleted');
+        },
+        onError: (err) => toast.error(getErrorMessage(err, 'Failed to delete')),
     });
 
     return (
@@ -72,6 +75,17 @@ export default function UsersPage() {
                                 <div className="flex gap-1 shrink-0">
                                     <button onClick={() => { setEditUser(user); setShowModal(true); }} className="btn-icon" title="Edit"><Edit3 size={14} className="text-muted" /></button>
                                     <button onClick={() => setShowResetPwd(user)} className="btn-icon" title="Reset Password"><Lock size={14} className="text-muted" /></button>
+                                    <button
+                                        onClick={() => {
+                                            if (confirm(`Remove access for ${user.name}?`)) {
+                                                deleteUser.mutate(user.id);
+                                            }
+                                        }}
+                                        className="btn-icon hover:bg-red-50"
+                                        title="Delete User"
+                                    >
+                                        <Trash2 size={14} className="text-red-400" />
+                                    </button>
                                 </div>
                             </div>
 
@@ -105,7 +119,11 @@ export default function UsersPage() {
 
             {/* Reset Password Modal */}
             <Modal isOpen={!!showResetPwd} onClose={() => setShowResetPwd(null)} title={`Reset Password — ${showResetPwd?.name}`} size="sm"
-                footer={<><button onClick={() => setShowResetPwd(null)} className="btn-secondary">Cancel</button><button onClick={() => resetPwd.mutate({ userId: showResetPwd.id, newPassword: newPwd })} disabled={!newPwd || newPwd.length < 6} className="btn-primary">Reset</button></>}>
+                footer={<><button onClick={() => setShowResetPwd(null)} className="btn-secondary">Cancel</button><button onClick={() => {
+                    api.post(`/users/${showResetPwd.id}/reset-password`, { newPassword: newPwd })
+                        .then(() => { toast.success('Password reset'); setShowResetPwd(null); setNewPwd(''); })
+                        .catch(err => toast.error(getErrorMessage(err, 'Failed')));
+                }} disabled={!newPwd || newPwd.length < 6} className="btn-primary">Reset</button></>}>
                 <div>
                     <label className="form-label">New Password</label>
                     <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} className="form-input" placeholder="Min 6 characters" minLength={6} />

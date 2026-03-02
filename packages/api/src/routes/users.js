@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/roleCheck.js';
 import { validate } from '../middleware/validate.js';
@@ -43,14 +43,14 @@ const createUserSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     email: z.string().email('Valid email required'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
-    role: z.enum(['owner', 'admin', 'advisor', 'viewer']).optional().default('advisor'),
+    role: z.enum(['owner', 'admin', 'advisor', 'viewer', 'agent']).optional().default('advisor'),
     phone: z.string().optional(),
     permissions: permissionsSchema,
 });
 
 const updateUserSchema = z.object({
     name: z.string().min(1).optional(),
-    role: z.enum(['owner', 'admin', 'advisor', 'viewer']).optional(),
+    role: z.enum(['owner', 'admin', 'advisor', 'viewer', 'agent']).optional(),
     phone: z.string().optional(),
     isActive: z.boolean().optional(),
     canManageUsers: z.boolean().optional(),
@@ -85,16 +85,45 @@ router.get('/me', authenticateToken, async (req, res) => {
     }
 });
 
+// PATCH /users/me — Update own profile
+router.patch('/me', authenticateToken, async (req, res) => {
+    try {
+        const { name, phone } = req.body;
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (phone !== undefined) updateData.phone = phone;
+
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ error: 'No data to update' });
+        }
+
+        const [updated] = await db.update(users)
+            .set(updateData)
+            .where(eq(users.id, req.user.id))
+            .returning(userSelectFields);
+
+        res.json(updated);
+    } catch (error) {
+        logger.error('Error updating profile:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 // GET /users — List all users (admin+ only)
 router.get('/', authenticateToken, requireAdmin, async (req, res) => {
     try {
+        console.log(`[API] Fetching users list for requester: ${req.user.email} (${req.user.role})`);
+        // Filter out 'agent' role because they are managed in the Agents section
         const results = await db.select(userSelectFields).from(users)
+            .where(sql`${users.role} != 'agent'`)
             .orderBy(desc(users.createdAt));
 
+        console.log(`[API] Found ${results.length} staff users`);
         res.json(results);
     } catch (error) {
+        console.error('[API] Error fetching users:', error);
         logger.error('Error fetching users:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 
@@ -219,6 +248,26 @@ router.post('/:id/reset-password', authenticateToken, requireAdmin, async (req, 
         res.json({ message: 'Password reset successfully', user: updated });
     } catch (error) {
         logger.error('Error resetting password:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// DELETE /users/:id — Delete user (admin+ only)
+router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
+    try {
+        // Prevent users from deleting themselves
+        if (req.params.id === req.user.id) {
+            return res.status(400).json({ error: 'You cannot delete your own account' });
+        }
+
+        const [deleted] = await db.delete(users)
+            .where(eq(users.id, req.params.id))
+            .returning({ id: users.id, name: users.name });
+
+        if (!deleted) return res.status(404).json({ error: 'User not found' });
+        res.json({ message: 'User deleted successfully', user: deleted });
+    } catch (error) {
+        logger.error('Error deleting user:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });

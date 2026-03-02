@@ -6,6 +6,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import winston from 'winston';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables as early as possible
+if (process.env.NODE_ENV !== 'production') {
+    dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+}
+
 // Routes
 import leadRoutes from './routes/leads.js';
 import prescriptionRoutes from './routes/prescriptions.js';
@@ -18,13 +26,8 @@ import documentRoutes from './routes/documents.js';
 import invoiceRoutes from './routes/invoices.js';
 import userRoutes from './routes/users.js';
 import agentPortalRoutes from './routes/agentPortal.js';
+import ocrRoutes from './routes/ocr.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-if (process.env.NODE_ENV !== 'production') {
-    dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
-}
 
 const app = express();
 
@@ -66,6 +69,7 @@ app.use('/v1', documentRoutes);          // /v1/leads/:leadId/documents + /v1/do
 app.use('/v1/invoices', invoiceRoutes);
 app.use('/v1/users', userRoutes);
 app.use('/v1/agent-portal', agentPortalRoutes);
+app.use('/v1/ocr', ocrRoutes);
 
 // Health check
 app.get('/v1/health', async (req, res) => {
@@ -106,7 +110,11 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ error: err.message });
     }
 
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).json({
+        error: 'Internal Server Error',
+        message: err.message,
+        stack: err.stack
+    });
 });
 
 export { app, logger };
