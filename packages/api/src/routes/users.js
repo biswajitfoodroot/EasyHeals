@@ -25,33 +25,21 @@ const DEFAULT_PERMISSIONS = {
     users: false,
 };
 
-const permissionsSchema = z.object({
-    dashboard: z.boolean().optional(),
-    leads: z.boolean().optional(),
-    pipeline: z.boolean().optional(),
-    agents: z.boolean().optional(),
-    masters: z.boolean().optional(),
-    invoices: z.boolean().optional(),
-    reports: z.boolean().optional(),
-    whatsapp: z.boolean().optional(),
-    archive: z.boolean().optional(),
-    closed_cases: z.boolean().optional(),
-    users: z.boolean().optional(),
-}).optional();
+const permissionsSchema = z.record(z.boolean()).nullable().optional();
 
 const createUserSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     email: z.string().email('Valid email required'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     role: z.enum(['owner', 'admin', 'advisor', 'viewer', 'agent']).optional().default('advisor'),
-    phone: z.string().optional(),
+    phone: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
     permissions: permissionsSchema,
 });
 
 const updateUserSchema = z.object({
     name: z.string().min(1).optional(),
     role: z.enum(['owner', 'admin', 'advisor', 'viewer', 'agent']).optional(),
-    phone: z.string().optional(),
+    phone: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
     isActive: z.boolean().optional(),
     canManageUsers: z.boolean().optional(),
     permissions: permissionsSchema,

@@ -9,6 +9,11 @@ export const validate = (schema, source = 'body') => {
         const result = schema.safeParse(data);
 
         if (!result.success) {
+            console.error('[VALIDATION ERROR]', {
+                path: req.path,
+                errors: result.error.errors,
+                received: data
+            });
             const errors = result.error.errors.map(err => ({
                 field: err.path.join('.'),
                 message: err.message

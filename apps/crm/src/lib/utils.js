@@ -154,6 +154,14 @@ export function debounce(fn, delay = 300) {
  * @returns {string}
  */
 export function getErrorMessage(err, fallback = 'Something went wrong') {
+    // Handle validation error details if provided
+    const details = err?.response?.data?.details;
+    if (Array.isArray(details) && details.length > 0) {
+        // Return first error: "Field Name: Error message"
+        const first = details[0];
+        return `${first.field}: ${first.message}`;
+    }
+
     // Try err.response.data.error first (our API convention)
     const apiError = err?.response?.data?.error;
     if (typeof apiError === 'string') return apiError;
