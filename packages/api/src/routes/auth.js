@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { db, dbReady } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { logger } from '../app.js';
+import { logger } from '../utils/logger.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();

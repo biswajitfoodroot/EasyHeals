@@ -33,6 +33,7 @@ export const hospitals = sqliteTable('hospitals', {
   contactPerson: text('contact_person'),
   contactPhone: text('contact_phone'),
   contactEmail: text('contact_email'),
+  emailIds: text('email_ids', { mode: 'json' }), // ['email1', 'email2', ...]
   accreditation: text('accreditation'),
   website: text('website'),
   isActive: integer('is_active', { mode: 'boolean' }).default(true),

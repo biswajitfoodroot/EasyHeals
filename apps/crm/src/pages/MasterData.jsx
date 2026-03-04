@@ -165,7 +165,14 @@ function DoctorsList({ search, onEdit }) {
 function MasterFormModal({ type, item, onClose }) {
     const queryClient = useQueryClient();
     const isEdit = !!item;
-    const [form, setForm] = useState(item || {});
+    const [form, setForm] = useState(() => {
+        if (!item) return {};
+        let emailIds = item.emailIds;
+        if (typeof emailIds === 'string') {
+            try { emailIds = JSON.parse(emailIds); } catch { emailIds = []; }
+        }
+        return { ...item, emailIds: Array.isArray(emailIds) ? emailIds : [] };
+    });
 
     const mutation = useMutation({
         mutationFn: (data) => isEdit
@@ -198,7 +205,40 @@ function MasterFormModal({ type, item, onClose }) {
                             <div><label className="form-label">State</label><input value={form.state || ''} onChange={(e) => update('state', e.target.value)} className="form-input" /></div>
                         </div>
                         <div><label className="form-label">Contact Person</label><input value={form.contactPerson || ''} onChange={(e) => update('contactPerson', e.target.value)} className="form-input" /></div>
-                        <div><label className="form-label">Contact Phone</label><input value={form.contactPhone || ''} onChange={(e) => update('contactPhone', e.target.value)} className="form-input" /></div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div><label className="form-label">Primary Email</label><input type="email" value={form.contactEmail || ''} onChange={(e) => update('contactEmail', e.target.value)} className="form-input" /></div>
+                            <div><label className="form-label">Contact Phone</label><input value={form.contactPhone || ''} onChange={(e) => update('contactPhone', e.target.value)} className="form-input" /></div>
+                        </div>
+                        <div>
+                            <label className="form-label flex justify-between items-center text-[10px]">
+                                Additional Notification Emails
+                                <button type="button" onClick={() => {
+                                    const current = form.emailIds || [];
+                                    update('emailIds', [...current, '']);
+                                }} className="text-teal hover:underline">+ Add</button>
+                            </label>
+                            <div className="space-y-2">
+                                {(form.emailIds || []).map((email, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => {
+                                                const next = [...form.emailIds];
+                                                next[idx] = e.target.value;
+                                                update('emailIds', next);
+                                            }}
+                                            className="form-input text-xs"
+                                            placeholder="hospital.contact@example.com"
+                                        />
+                                        <button type="button" onClick={() => {
+                                            const next = form.emailIds.filter((_, i) => i !== idx);
+                                            update('emailIds', next);
+                                        }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </>
                 )}
                 {type === 'departments' && (

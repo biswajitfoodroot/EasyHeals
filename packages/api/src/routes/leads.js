@@ -4,7 +4,7 @@ import { rateLimit } from 'express-rate-limit';
 import { db } from '../db/index.js';
 import { activities, hospitals, departments, doctors, agents, users, attendants, documents, leads } from '../db/schema.js';
 import { desc, eq, or, like, and, gte, lte, count, sql, inArray } from 'drizzle-orm';
-import { logger } from '../app.js';
+import { logger } from '../utils/logger.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/roleCheck.js';
 import { validate } from '../middleware/validate.js';

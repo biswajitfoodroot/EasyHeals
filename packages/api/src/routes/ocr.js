@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { logger } from '../app.js';
+import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 const upload = multer({

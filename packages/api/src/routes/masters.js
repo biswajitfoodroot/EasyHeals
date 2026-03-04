@@ -5,7 +5,7 @@ import { hospitals, departments, doctors } from '../db/schema.js';
 import { eq, like, and, desc } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { logger } from '../app.js';
+import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -20,6 +20,7 @@ const hospitalSchema = z.object({
     contactPerson: z.string().optional(),
     contactPhone: z.string().optional(),
     contactEmail: z.string().email().optional().or(z.literal('')),
+    emailIds: z.array(z.string().email()).optional().nullable(),
     accreditation: z.string().optional(),
     website: z.string().optional(),
 });
@@ -37,7 +38,16 @@ router.get('/hospitals', authenticateToken, async (req, res) => {
             .where(conditions.length > 0 ? and(...conditions) : undefined)
             .orderBy(hospitals.name);
 
-        res.json(results);
+        // Robust parsing of emailIds
+        const formatted = results.map(h => {
+            let emailIds = h.emailIds;
+            if (typeof emailIds === 'string') {
+                try { emailIds = JSON.parse(emailIds); } catch { emailIds = []; }
+            }
+            return { ...h, emailIds: Array.isArray(emailIds) ? emailIds : [] };
+        });
+
+        res.json(formatted);
     } catch (error) {
         logger.error('Error fetching hospitals:', error);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -61,13 +71,26 @@ router.post('/hospitals', authenticateToken, validate(hospitalSchema), async (re
 router.patch('/hospitals/:id', authenticateToken, async (req, res) => {
     try {
         const { id, createdAt, isActive, ...updateData } = req.body;
+
+        // Ensure emailIds is serialized if present
+        if (updateData.emailIds && Array.isArray(updateData.emailIds)) {
+            // Drizzle mode: 'json' handles this, but we ensure it's a clean array
+            updateData.emailIds = updateData.emailIds.filter(e => e && e.trim());
+        }
+
         const [updated] = await db.update(hospitals)
             .set(updateData)
             .where(eq(hospitals.id, req.params.id))
             .returning();
 
         if (!updated) return res.status(404).json({ error: 'Hospital not found' });
-        res.json(updated);
+
+        // Parse back for response
+        let emailIds = updated.emailIds;
+        if (typeof emailIds === 'string') {
+            try { emailIds = JSON.parse(emailIds); } catch { emailIds = []; }
+        }
+        res.json({ ...updated, emailIds: Array.isArray(emailIds) ? emailIds : [] });
     } catch (error) {
         logger.error('Error updating hospital:', error);
         res.status(500).json({ error: 'Internal Server Error' });

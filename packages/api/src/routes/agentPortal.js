@@ -9,7 +9,7 @@ import { leads, attendants, documents, activities, hospitals, departments, docto
 import { eq, and, desc, count, sql } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAgent } from '../middleware/roles.js';
-import { logger } from '../app.js';
+import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

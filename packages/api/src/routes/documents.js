@@ -8,7 +8,7 @@ import { db } from '../db/index.js';
 import { documents, activities } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
-import { logger } from '../app.js';
+import { logger } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -12,7 +12,7 @@ import LeadDetail from '../components/leads/LeadDetail';
 import ImportLeads from '../components/leads/ImportLeads';
 import {
     Plus, Search, Filter, Download, Archive, ChevronLeft,
-    ChevronRight, MoreVertical, CheckSquare, Square, Eye, Upload, X
+    ChevronRight, MoreVertical, CheckSquare, Square, Eye, Upload, X, Mail
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
@@ -196,9 +196,9 @@ export default function Leads() {
                 )}
             </div>
 
-            <div className="flex gap-0">
+            <div className="flex gap-0 overflow-hidden relative min-h-[calc(100vh-200px)]">
                 {/* Table / Cards */}
-                <div className={`flex-1 ${selectedLead ? 'hidden lg:block' : ''}`}>
+                <div className={`flex-1 min-w-0 transition-all ${selectedLead ? 'hidden 2xl:block' : ''}`}>
                     {/* Desktop Table */}
                     <div className="card hidden sm:block overflow-hidden">
                         <div className="overflow-x-auto">
@@ -213,6 +213,7 @@ export default function Leads() {
                                         <th className="table-header">Lead</th>
                                         <th className="table-header">Phone</th>
                                         <th className="table-header">Status</th>
+                                        <th className="table-header">Hospital</th>
                                         <th className="table-header hidden lg:table-cell">Medical</th>
                                         <th className="table-header hidden xl:table-cell">Agent</th>
                                         <th className="table-header hidden xl:table-cell">Amount</th>
@@ -235,13 +236,30 @@ export default function Leads() {
                                                     </button>
                                                 </td>
                                                 <td className="table-cell">
-                                                    <div className="font-semibold">{lead.name}</div>
-                                                    <div className="text-[10px] text-muted font-mono">{lead.refId}</div>
+                                                    <div className="flex items-center justify-between group/row">
+                                                        <div>
+                                                            <div className="font-semibold">{lead.name}</div>
+                                                            <div className="text-[10px] text-muted font-mono">{lead.refId}</div>
+                                                        </div>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedLead({ ...lead, _triggerEmail: true });
+                                                            }}
+                                                            className="p-1.5 bg-amber-50 text-amber-600 rounded-lg opacity-0 group-hover/row:opacity-100 transition-opacity hover:bg-amber-100"
+                                                            title="Email Hospital"
+                                                        >
+                                                            <Mail size={14} />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                                 <td className="table-cell">
                                                     <PhoneLink countryCode={lead.countryCode} phone={lead.phone} showWhatsApp={true} />
                                                 </td>
                                                 <td className="table-cell"><StatusBadge status={lead.status} /></td>
+                                                <td className="table-cell">
+                                                    <div className="text-sm font-medium">{lead.hospitalName || '—'}</div>
+                                                </td>
                                                 <td className="table-cell hidden lg:table-cell">
                                                     <div className="text-sm">{truncate(lead.medicalIssue, 30)}</div>
                                                     <div className="text-xs text-muted">{lead.departmentName}</div>
@@ -302,7 +320,7 @@ export default function Leads() {
 
                 {/* Lead Detail Side Panel */}
                 {selectedLead && leadDetail && (
-                    <LeadDetail lead={leadDetail} onClose={() => setSelectedLead(null)} onEdit={handleEdit} />
+                    <LeadDetail lead={leadDetail} triggerEmail={selectedLead?._triggerEmail} onClose={() => setSelectedLead(null)} onEdit={handleEdit} />
                 )}
             </div>
 

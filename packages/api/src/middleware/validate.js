@@ -9,19 +9,23 @@ export const validate = (schema, source = 'body') => {
         const result = schema.safeParse(data);
 
         if (!result.success) {
-            console.error('[VALIDATION ERROR]', {
+            const errorLog = {
+                timestamp: new Date().toISOString(),
                 path: req.path,
+                method: req.method,
                 errors: result.error.errors,
                 received: data
-            });
-            const errors = result.error.errors.map(err => ({
-                field: err.path.join('.'),
-                message: err.message
-            }));
+            };
+
+            // Try as a simple log first
+            console.error('[VALIDATION ERROR]', JSON.stringify(errorLog, null, 2));
 
             return res.status(400).json({
                 error: 'Validation failed',
-                details: errors
+                details: result.error.errors.map(err => ({
+                    field: err.path.join('.'),
+                    message: err.message
+                }))
             });
         }
 

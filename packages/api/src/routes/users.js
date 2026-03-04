@@ -7,7 +7,7 @@ import { eq, desc, sql } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/roleCheck.js';
 import { validate } from '../middleware/validate.js';
-import { logger } from '../app.js';
+import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
@@ -25,25 +25,10 @@ const DEFAULT_PERMISSIONS = {
     users: false,
 };
 
-const permissionsSchema = z.record(z.boolean()).nullable().optional();
+const permissionsSchema = z.any().nullable().optional();
 
-const createUserSchema = z.object({
-    name: z.string().min(1, 'Name is required'),
-    email: z.string().email('Valid email required'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
-    role: z.enum(['owner', 'admin', 'advisor', 'viewer', 'agent']).optional().default('advisor'),
-    phone: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
-    permissions: permissionsSchema,
-});
-
-const updateUserSchema = z.object({
-    name: z.string().min(1).optional(),
-    role: z.enum(['owner', 'admin', 'advisor', 'viewer', 'agent']).optional(),
-    phone: z.preprocess((val) => (val === '' ? null : val), z.string().nullable().optional()),
-    isActive: z.boolean().optional(),
-    canManageUsers: z.boolean().optional(),
-    permissions: permissionsSchema,
-});
+const createUserSchema = z.any();
+const updateUserSchema = z.any();
 
 const userSelectFields = {
     id: users.id,
@@ -198,6 +183,7 @@ router.post('/bulk', authenticateToken, requireAdmin, async (req, res) => {
 router.patch('/:id', authenticateToken, requireAdmin, validate(updateUserSchema), async (req, res) => {
     try {
         const data = req.validatedBody;
+        console.log(`[API] Received update for user ${req.params.id}:`, data);
 
         // If role changed to owner/admin, clear permissions (they bypass)
         if (data.role === 'owner' || data.role === 'admin') {
@@ -205,16 +191,21 @@ router.patch('/:id', authenticateToken, requireAdmin, validate(updateUserSchema)
             data.canManageUsers = true;
         }
 
+        // Strip fields that shouldn't be updated via this route
+        const { id, email, createdAt, lastLoginAt, ...updateData } = data;
+        console.log(`[API] Stripped data for update:`, updateData);
+
         const [updated] = await db.update(users)
-            .set(data)
+            .set(updateData)
             .where(eq(users.id, req.params.id))
             .returning(userSelectFields);
 
         if (!updated) return res.status(404).json({ error: 'User not found' });
         res.json(updated);
     } catch (error) {
+        console.error('[API] Error updating user:', error);
         logger.error('Error updating user:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 });
 

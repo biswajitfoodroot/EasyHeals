@@ -5,7 +5,7 @@ import { waTemplates } from '../db/schema.js';
 import { eq, like, desc } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { logger } from '../app.js';
+import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
