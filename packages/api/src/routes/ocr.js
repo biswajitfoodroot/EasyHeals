@@ -9,7 +9,12 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const getGenAI = () => {
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured');
+    }
+    return new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+};
 
 const OCR_PROMPT = `
 You are an expert document parser for EasyHeals. 
@@ -40,6 +45,7 @@ async function runOCRWithFallback(fileBuffer, mimeType) {
     for (const modelName of MODELS_PRIORITY) {
         try {
             console.log(`[OCR] Attempting with model: ${modelName}`);
+            const genAI = getGenAI();
             const model = genAI.getGenerativeModel({ model: modelName });
             const result = await model.generateContent([
                 OCR_PROMPT,
@@ -72,6 +78,7 @@ router.get('/health', async (req, res) => {
         const results = [];
         for (const name of MODELS_PRIORITY) {
             try {
+                const genAI = getGenAI();
                 const model = genAI.getGenerativeModel({ model: name });
                 // Minimal check
                 await model.generateContent('ping');

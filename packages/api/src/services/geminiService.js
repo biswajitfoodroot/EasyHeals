@@ -6,9 +6,17 @@ import { searchProviders } from './knowledgeBase.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+if (process.env.NODE_ENV !== 'production') {
+    dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
+}
+
+const getGenAI = () => {
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY is not configured');
+    }
+    return new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+};
 
 const SYSTEM_PROMPT = `
 You are Arya, the EasyHeals Agentic AI Health Assistant. 
@@ -55,6 +63,7 @@ const tools = [
 ];
 
 export async function chatWithGemini(userMessage, chatHistory = []) {
+    const genAI = getGenAI();
     const model = genAI.getGenerativeModel({
         model: 'gemini-2.5-flash',
         systemInstruction: SYSTEM_PROMPT,
@@ -105,6 +114,7 @@ export async function chatWithGemini(userMessage, chatHistory = []) {
 
 // Prescription Analysis remained same as before (Multimodal)
 export async function analysePrescriptionWithGemini(fileBuffer, mimeType) {
+    const genAI = getGenAI();
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const prompt = `You are a medical document analyser for EasyHeals. Analyse this prescription image and return ONLY a JSON object with medication names, likely condition, warnings, recommended specialist, and confidence. If not a prescription, return an error.`;
 
