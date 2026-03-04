@@ -2,13 +2,15 @@ import express from 'express';
 import { z } from 'zod';
 import { rateLimit } from 'express-rate-limit';
 import { db } from '../db/index.js';
-import { leads, activities, hospitals, departments, doctors, agents, users, attendants, documents } from '../db/schema.js';
+import { activities, hospitals, departments, doctors, agents, users, attendants, documents, leads } from '../db/schema.js';
 import { desc, eq, or, like, and, gte, lte, count, sql, inArray } from 'drizzle-orm';
 import { logger } from '../app.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/roleCheck.js';
 import { validate } from '../middleware/validate.js';
 import { requireAdvisor } from '../middleware/roles.js';
+import { sendEmail } from '../services/emailService.js';
+import PDFDocument from 'pdfkit';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -521,6 +523,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
             lead: leads,
             agentName: agents.name,
             hospitalName: hospitals.name,
+            hospitalEmail: hospitals.contactEmail,
+            hospitalEmailIds: hospitals.emailIds,
             departmentName: departments.name,
             doctorName: doctors.name,
             assignedToName: users.name,
@@ -541,6 +545,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
             ...r.lead,
             agentName: r.agentName,
             hospitalName: r.hospitalName,
+            hospitalEmail: r.hospitalEmail,
+            hospitalEmailIds: r.hospitalEmailIds,
             departmentName: r.departmentName,
             doctorName: r.doctorName,
             assignedToName: r.assignedToName,
@@ -1005,7 +1011,281 @@ router.get('/:id/attendants', authenticateToken, async (req, res) => {
         logger.error('Error fetching attendants:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
-    // router.get('/:id/attendants', ...) catch (error) { ... }
+});
+
+// POST /leads/:id/send-visa-email — Send VIL to hospital
+router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { recipientEmails, subject: customSubject, body: customBody, attachmentIds } = req.body; // Array of emails, optional custom subject/body, optional extra attachments
+
+        // Fetch lead with visa data
+        const [lead] = await db.select({
+            lead: leads,
+            hospital: hospitals
+        })
+            .from(leads)
+            .leftJoin(hospitals, eq(leads.hospitalId, hospitals.id))
+            .where(eq(leads.id, id))
+            .limit(1);
+
+        if (!lead) return res.status(404).json({ error: 'Lead not found' });
+        if (!lead.lead.visaLetterData) return res.status(400).json({ error: 'Visa letter data not found' });
+
+        const data = lead.lead.visaLetterData;
+        const patientName = `${data.patient?.givenName || lead.lead.name} ${data.patient?.surname || ''}`.trim();
+
+        // Generate PDF — formatted to match the View Letter preview
+        const chunks = [];
+        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        doc.on('data', chunk => chunks.push(chunk));
+
+        // ── Header ──────────────────────────────────────────────────────────
+        doc.fontSize(16).font('Helvetica-Bold')
+            .text('VISA INVITATION LETTER — REQUEST DATA', { align: 'center' });
+        doc.moveDown(0.3);
+        doc.fontSize(11).font('Helvetica')
+            .fillColor('#555')
+            .text(`Patient: ${patientName}`, { align: 'center' });
+        doc.moveDown(1);
+
+        // ── Helper: draw a two-column table for a person ─────────────────────
+        const drawTable = (rows, title) => {
+            // Section heading
+            doc.fontSize(11).font('Helvetica-Bold').fillColor('#0d9488')
+                .text(title, { underline: false });
+            doc.moveDown(0.3);
+
+            const tableTop = doc.y;
+            const colLabel = 50;
+            const colValue = 250;
+            const colWidth1 = 190;
+            const colWidth2 = 290;
+            const rowHeight = 20;
+            const pageWidth = 495; // A4 usable width at margin 50
+
+            rows.forEach(([label, value], i) => {
+                const y = tableTop + i * rowHeight;
+
+                // Check page overflow
+                if (y + rowHeight > doc.page.height - 60) {
+                    doc.addPage();
+                }
+
+                const rowY = y < doc.page.height - 60 ? y : doc.y;
+
+                // Background for label cell
+                doc.rect(colLabel, rowY, colWidth1, rowHeight).fillAndStroke('#f8fafc', '#cccccc');
+                // Value cell
+                doc.rect(colLabel + colWidth1, rowY, colWidth2, rowHeight).fillAndStroke('white', '#cccccc');
+
+                // Label text
+                doc.fontSize(9).font('Helvetica-Bold').fillColor('#444')
+                    .text(label, colLabel + 4, rowY + 5, { width: colWidth1 - 8, ellipsis: true });
+
+                // Value text
+                doc.fontSize(9).font('Helvetica').fillColor('#111')
+                    .text(value || '', colLabel + colWidth1 + 4, rowY + 5, { width: colWidth2 - 8, ellipsis: true });
+            });
+
+            // Move cursor past the table
+            doc.y = tableTop + rows.length * rowHeight + 16;
+            doc.moveDown(0.5);
+        };
+
+        // ── Patient Table ────────────────────────────────────────────────────
+        const p = data.patient || {};
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '';
+        drawTable([
+            ['Patient Surname *', p.surname],
+            ['Patient Given Name *', p.givenName],
+            ['Gender *', p.gender],
+            ['Date of Birth (DD/MM/YYYY) *', fmtDate(p.dateOfBirth)],
+            ['Nationality *', p.nationality],
+            ['Passport No *', p.passportNo],
+            ['Address *', p.address],
+            ['Contact Number *', p.contactNumber],
+            ['Email id *', p.email],
+            ['Diagnosis / Proposed Treatment *', p.doctorSpeciality],
+            ['Department Name', p.departmentName],
+            ['Appointment Date', fmtDate(p.appointmentDate)],
+            ['Dr to Meet', p.doctorMeetName],
+        ], 'PATIENT DETAILS');
+
+        // ── Attendant Tables ─────────────────────────────────────────────────
+        const drawAttendant = (att, label) => {
+            if (!att?.surname) return;
+            drawTable([
+                [`${label} Surname *`, att.surname],
+                [`${label} Given Name *`, att.givenName],
+                [`${label} Passport No *`, att.passportNo],
+                ['Gender *', att.gender],
+                ['Date of Birth (DD/MM/YYYY) *', fmtDate(att.dateOfBirth)],
+                ['Address *', att.address],
+                ['Contact Number', att.contactNumber],
+                ['Email', att.email],
+                ['Relationship between Patient & Attendant', att.relationship],
+            ], label.toUpperCase());
+        };
+
+        drawAttendant(data.attendant1, 'Attendant 1');
+        drawAttendant(data.attendant2, 'Attendant 2');
+        drawAttendant(data.attendant3, 'Attendant 3');
+
+        doc.end();
+
+        // Wait for PDF to finish
+        const pdfBuffer = await new Promise((resolve) => {
+            doc.on('end', () => resolve(Buffer.concat(chunks)));
+        });
+
+        // Email Content
+        const defaultSubject = `Request for VIL - ${patientName}`;
+        const finalSubject = customSubject || defaultSubject;
+
+        // Use customBody from frontend if provided, otherwise use a default
+        const contentBody = customBody || `Dear Sir/Madam,\n\nPlease find attached the Visa Invitation Letter request for our patient, ${patientName}.\n\nBelow are the details for your quick reference:\n\nPatient: ${patientName}\nPassport: ${data.patient?.passportNo || 'N/A'}`;
+
+        const bodyHtml = `
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #334155; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px;">
+                <div style="background-color: #0d9488; padding: 24px; color: white; text-align: center;">
+                    <h2 style="margin: 0; font-size: 20px;">Visa Invitation Request</h2>
+                </div>
+                <div style="padding: 32px; background-color: white;">
+                    <div style="white-space: pre-wrap; margin-bottom: 24px;">${contentBody}</div>
+                    
+                    ${(() => {
+                const tableRow = (label, value) => value ? `<tr><td style="padding: 10px 16px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; width: 160px; color: #64748b; font-size: 12px; white-space: nowrap;"><strong>${label}</strong></td><td style="padding: 10px 16px; border-bottom: 1px solid #e2e8f0; color: #0f172a; font-size: 13px;">${value}</td></tr>` : '';
+                const sectionHeader = (label) => `<tr><td colspan="2" style="padding: 10px 16px; background: #0d9488; color: white; font-size: 12px; font-weight: 800; letter-spacing: 0.05em;">${label}</td></tr>`;
+                const p = data.patient || {};
+                const a1 = data.attendant1 || {};
+                const a2 = data.attendant2 || {};
+                const a3 = data.attendant3 || {};
+                let rows = '';
+                rows += sectionHeader('PATIENT DETAILS');
+                rows += tableRow('Name', [p.givenName, p.surname].filter(Boolean).join(' ') || patientName);
+                rows += tableRow('Date of Birth', p.dateOfBirth);
+                rows += tableRow('Gender', p.gender);
+                rows += tableRow('Passport No', p.passportNo);
+                rows += tableRow('Nationality', p.nationality);
+                rows += tableRow('Address', p.address);
+                rows += tableRow('Contact Number', p.contactNumber);
+                rows += tableRow('Email', p.email);
+                rows += tableRow('Doctor Speciality', p.doctorSpeciality);
+                rows += tableRow('Department', p.departmentName);
+                rows += tableRow('Appointment Date', p.appointmentDate);
+                rows += tableRow('Doctor to Meet', p.doctorMeetName);
+                if (a1.surname) {
+                    rows += sectionHeader('ATTENDANT 1');
+                    rows += tableRow('Name', [a1.givenName, a1.surname].filter(Boolean).join(' '));
+                    rows += tableRow('Date of Birth', a1.dateOfBirth);
+                    rows += tableRow('Gender', a1.gender);
+                    rows += tableRow('Passport No', a1.passportNo);
+                    rows += tableRow('Nationality', a1.nationality);
+                    rows += tableRow('Address', a1.address);
+                    rows += tableRow('Contact Number', a1.contactNumber);
+                    rows += tableRow('Email', a1.email);
+                    rows += tableRow('Relationship', a1.relationship);
+                }
+                if (a2.surname) {
+                    rows += sectionHeader('ATTENDANT 2');
+                    rows += tableRow('Name', [a2.givenName, a2.surname].filter(Boolean).join(' '));
+                    rows += tableRow('Date of Birth', a2.dateOfBirth);
+                    rows += tableRow('Gender', a2.gender);
+                    rows += tableRow('Passport No', a2.passportNo);
+                    rows += tableRow('Nationality', a2.nationality);
+                    rows += tableRow('Address', a2.address);
+                    rows += tableRow('Contact Number', a2.contactNumber);
+                    rows += tableRow('Email', a2.email);
+                    rows += tableRow('Relationship', a2.relationship);
+                }
+                if (a3.surname) {
+                    rows += sectionHeader('ATTENDANT 3');
+                    rows += tableRow('Name', [a3.givenName, a3.surname].filter(Boolean).join(' '));
+                    rows += tableRow('Date of Birth', a3.dateOfBirth);
+                    rows += tableRow('Gender', a3.gender);
+                    rows += tableRow('Passport No', a3.passportNo);
+                    rows += tableRow('Nationality', a3.nationality);
+                    rows += tableRow('Address', a3.address);
+                    rows += tableRow('Contact Number', a3.contactNumber);
+                    rows += tableRow('Email', a3.email);
+                    rows += tableRow('Relationship', a3.relationship);
+                }
+                return `<table style="width: 100%; border-collapse: collapse; margin: 24px 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">${rows}</table>`;
+            })()}
+
+                    <p style="margin-bottom: 32px; color: #64748b; font-size: 13px; italic">Please process the VIL at the earliest. If you require any further information, please feel free to reach out.</p>
+                    
+                    <div style="margin-top: 40px; padding-top: 24px; border-top: 2px solid #f1f5f9;">
+                        <table style="width: 100%;">
+                            <tr>
+                                <td style="vertical-align: top;">
+                                    <div style="font-weight: 800; color: #0d9488; font-size: 16px; margin-bottom: 4px;">Marketing Department</div>
+                                    <div style="color: #1e293b; font-size: 14px; font-weight: 600;">EasyHeals Technologies Pvt Ltd.</div>
+                                    <div style="margin-top: 8px;">
+                                        <a href="https://www.easyheals.com" style="color: #c2410c; text-decoration: none; font-size: 13px; font-weight: 600;">www.easyheals.com</a>
+                                    </div>
+                                    <div style="margin-top: 12px; font-size: 11px; color: #94a3b8; font-weight: 500;">
+                                        Supported by IIM Lucknow & IIT Mandi
+                                    </div>
+                                </td>
+                                <td style="text-align: right; vertical-align: bottom;">
+                                    <div style="background: #f0fdfa; color: #0d9488; padding: 4px 12px; border-radius: 6px; font-size: 10px; font-weight: 800; display: inline-block; border: 1px solid #ccfbf1;">
+                                        TRUSTED HEALTHCARE PARTNER
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const finalAttachments = [{
+            filename: `VIL_Request_data_${patientName.replace(/\s+/g, '_')}.pdf`,
+            content: pdfBuffer
+        }];
+
+        // Add extra attachments if requested
+        if (attachmentIds && Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+            const extraDocs = await db.select().from(documents).where(inArray(documents.id, attachmentIds));
+            for (const docInfo of extraDocs) {
+                // Map /uploads/... to actual disk path
+                const filePath = path.join(visaUploadDir, docInfo.fileUrl.replace('/uploads/', ''));
+                if (fs.existsSync(filePath)) {
+                    finalAttachments.push({
+                        filename: docInfo.fileName,
+                        content: fs.readFileSync(filePath)
+                    });
+                }
+            }
+        }
+
+        const toAddress = (recipientEmails && Array.isArray(recipientEmails) && recipientEmails.length > 0)
+            ? recipientEmails
+            : lead.hospital?.contactEmail;
+
+        await sendEmail({
+            to: toAddress,
+            subject: finalSubject,
+            text: contentBody,
+            html: bodyHtml,
+            attachments: finalAttachments
+        });
+
+        const loggedRecipients = Array.isArray(toAddress) ? toAddress.join(', ') : toAddress;
+        await db.insert(activities).values({
+            leadId: id,
+            type: 'email_sent',
+            description: `Visa Letter emailed to hospital: ${loggedRecipients || 'Unknown'}`,
+            performedBy: req.user.id,
+        });
+
+        res.json({ message: 'Email sent successfully' });
+    } catch (error) {
+        logger.error('Error sending visa email:', error);
+        res.status(500).json({ error: 'Failed to send email', message: error.message });
+    }
 });
 
 router.use((err, req, res, next) => {

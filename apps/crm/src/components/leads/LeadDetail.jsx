@@ -16,14 +16,22 @@ import {
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
 
-export default function LeadDetail({ lead, onClose, onEdit }) {
+export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
     const queryClient = useQueryClient();
+    const user = useAuth(state => state.user);
     const [noteText, setNoteText] = useState('');
     const [selectedDocType, setSelectedDocType] = useState('other');
     const [activeTab, setActiveTab] = useState('visa');
     const [showWaModal, setShowWaModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [showRejectForm, setShowRejectForm] = useState(false);
+    const [showEmailModal, setShowEmailModal] = useState(false);
+    const [selectedEmails, setSelectedEmails] = useState([]);
+    const [customEmail, setCustomEmail] = useState('');
+    const [emailSubject, setEmailSubject] = useState('');
+    const [emailBody, setEmailBody] = useState('');
+    const [selectedAttachmentIds, setSelectedAttachmentIds] = useState([]);
+    const [isSending, setIsSending] = useState(false);
 
     const { data: documents } = useQuery({
         queryKey: ['documents', lead?.id],
@@ -88,6 +96,89 @@ export default function LeadDetail({ lead, onClose, onEdit }) {
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['documents', lead.id] }); toast.success('Visa invite letter uploaded'); },
     });
 
+    const sendVisaEmail = useMutation({
+        mutationFn: (emailData) => api.post(`/leads/${lead.id}/send-visa-email`, emailData),
+        onSuccess: () => {
+            toast.success('Visa letter emailed to hospital');
+            setShowEmailModal(false);
+            queryClient.invalidateQueries({ queryKey: ['lead', lead.id] });
+        },
+        onError: (err) => toast.error(err.response?.data?.error || 'Failed to send email'),
+    });
+
+    const handleEmailToHospital = () => {
+        const emails = [];
+        if (lead.hospitalEmail) emails.push(lead.hospitalEmail);
+
+        // hospitalEmailIds can be an array or a JSON string depending on DB driver
+        let emailIds = lead.hospitalEmailIds;
+        if (typeof emailIds === 'string') {
+            try { emailIds = JSON.parse(emailIds); } catch { emailIds = []; }
+        }
+        if (Array.isArray(emailIds)) {
+            emails.push(...emailIds.filter(e => e && e.trim()));
+        }
+
+        // Pre-fill subject and body if empty
+        if (!emailSubject) setEmailSubject(`Request for VIL - ${lead.name}`);
+        if (!emailBody) {
+            const data = lead.visaLetterData || {};
+            const patientName = `${data.patient?.givenName || lead.name} ${data.patient?.surname || ''}`.trim();
+
+            const personBlock = (person, label) => {
+                if (!person?.surname) return '';
+                const lines = [`--- ${label} ---`];
+                if (person.givenName || person.surname) lines.push(`Name: ${[person.givenName, person.surname].filter(Boolean).join(' ')}`);
+                if (person.dateOfBirth) lines.push(`Date of Birth: ${person.dateOfBirth}`);
+                if (person.gender) lines.push(`Gender: ${person.gender}`);
+                if (person.passportNo) lines.push(`Passport No: ${person.passportNo}`);
+                if (person.nationality) lines.push(`Nationality: ${person.nationality}`);
+                if (person.address) lines.push(`Address: ${person.address}`);
+                if (person.contactNumber) lines.push(`Contact Number: ${person.contactNumber}`);
+                if (person.email) lines.push(`Email: ${person.email}`);
+                if (person.relationship) lines.push(`Relationship: ${person.relationship}`);
+                if (person.doctorSpeciality) lines.push(`Doctor Speciality: ${person.doctorSpeciality}`);
+                if (person.departmentName) lines.push(`Department: ${person.departmentName}`);
+                if (person.appointmentDate) lines.push(`Appointment Date: ${person.appointmentDate}`);
+                if (person.doctorMeetName) lines.push(`Doctor to Meet: ${person.doctorMeetName}`);
+                return lines.join('\n');
+            };
+
+            const blocks = [
+                personBlock(data.patient, 'Patient'),
+                personBlock(data.attendant1, 'Attendant 1'),
+                personBlock(data.attendant2, 'Attendant 2'),
+                personBlock(data.attendant3, 'Attendant 3'),
+            ].filter(Boolean).join('\n\n');
+
+            setEmailBody(`Dear Sir/Madam,\n\nPlease find attached the Visa Invitation Letter request for our patient, ${patientName}.\n\nBelow are the complete details for your quick reference:\n\n${blocks}`);
+        }
+
+        setSelectedEmails(emails); // Default to all
+        setSelectedAttachmentIds([]); // Reset on open
+        setShowEmailModal(true);
+    };
+
+    const uploadAttachment = async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('docType', 'other');
+        try {
+            const res = await api.post(`/leads/${lead.id}/documents`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            queryClient.invalidateQueries({ queryKey: ['documents', lead.id] });
+            setSelectedAttachmentIds(prev => [...prev, res.data.id]);
+            toast.success('Document uploaded and attached');
+        } catch (err) {
+            toast.error('Upload failed');
+        }
+    };
+
+    useEffect(() => {
+        if (triggerEmail) {
+            handleEmailToHospital();
+        }
+    }, [triggerEmail]);
+
     if (!lead) return null;
 
     const tabs = [
@@ -111,7 +202,7 @@ export default function LeadDetail({ lead, onClose, onEdit }) {
     ) : null;
 
     return (
-        <div className="fixed inset-0 lg:relative lg:inset-auto w-full lg:w-[420px] bg-white lg:border-l border-border flex flex-col shadow-2xl z-40 animate-slide-in-right">
+        <div className="fixed inset-0 lg:relative lg:inset-auto lg:flex-1 2xl:flex-none 2xl:w-[480px] bg-white lg:border-l border-border flex flex-col shadow-2xl z-40 animate-slide-in-right">
             {/* Header */}
             <div className="px-6 py-4 border-b border-border bg-gray-50 shrink-0">
                 <div className="flex items-center justify-between mb-3">
@@ -170,7 +261,6 @@ export default function LeadDetail({ lead, onClose, onEdit }) {
                 </div>
             )}
 
-            {/* Quick Actions */}
             <div className="px-6 py-3 border-b border-border flex gap-2">
                 <button onClick={() => setShowWaModal(true)}
                     className="flex-1 btn-sm bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl font-bold flex items-center justify-center gap-1.5 py-2 transition-colors">
@@ -270,7 +360,7 @@ export default function LeadDetail({ lead, onClose, onEdit }) {
                 )}
 
                 {activeTab === 'visa' && (
-                    <VisaLetterSection lead={lead} />
+                    <VisaLetterSection lead={lead} onEmailHospital={handleEmailToHospital} />
                 )}
 
                 {activeTab === 'attendants' && (
@@ -338,9 +428,259 @@ export default function LeadDetail({ lead, onClose, onEdit }) {
                 )}
             </div>
 
-            {/* WhatsApp Template Modal */}
-            {showWaModal && (
-                <WhatsAppTemplateModal lead={lead} onClose={() => setShowWaModal(false)} />
+            {/* Hospital Email Modal */}
+            {showEmailModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                        <div className="px-8 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                            <div>
+                                <h3 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+                                    <Mail className="text-amber-500" size={24} />
+                                    Email Composer
+                                </h3>
+                                <p className="text-xs text-muted font-medium mt-0.5">Prepare and send the Visa Invitation Letter request</p>
+                            </div>
+                            <button onClick={() => setShowEmailModal(false)} className="p-2.5 hover:bg-gray-200 rounded-xl transition-colors">
+                                <X size={20} className="text-slate-500" />
+                            </button>
+                        </div>
+
+                        <div className="px-8 py-6 space-y-6 overflow-y-auto custom-scrollbar">
+                            {/* Recipients */}
+                            <div className="space-y-4">
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-[10px] font-bold text-muted uppercase tracking-widest block">Available Contacts</label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    let parsedEmailIds = lead.hospitalEmailIds;
+                                                    if (typeof parsedEmailIds === 'string') {
+                                                        try { parsedEmailIds = JSON.parse(parsedEmailIds); } catch { parsedEmailIds = []; }
+                                                    }
+                                                    const all = [lead.hospitalEmail, ...(Array.isArray(parsedEmailIds) ? parsedEmailIds : [])].filter(Boolean);
+                                                    setSelectedEmails(all);
+                                                }}
+                                                className="text-[9px] font-bold text-teal hover:underline"
+                                            >Select All</button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedEmails([])}
+                                                className="text-[9px] font-bold text-red-400 hover:underline"
+                                            >Clear</button>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-2xl border border-gray-100 italic text-[10px] text-muted min-h-[50px] flex items-center justify-center">
+                                        {(() => {
+                                            // Parse hospitalEmailIds - could be array or JSON string
+                                            let parsedEmailIds = lead.hospitalEmailIds;
+                                            if (typeof parsedEmailIds === 'string') {
+                                                try { parsedEmailIds = JSON.parse(parsedEmailIds); } catch { parsedEmailIds = []; }
+                                            }
+                                            const allEmails = [lead.hospitalEmail, ...(Array.isArray(parsedEmailIds) ? parsedEmailIds : [])].filter(Boolean);
+                                            if (allEmails.length === 0) return <span>No pre-configured emails found</span>;
+                                            return allEmails.map(email => (
+                                                <button
+                                                    key={email}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (selectedEmails.includes(email)) {
+                                                            setSelectedEmails(selectedEmails.filter(e => e !== email));
+                                                        } else {
+                                                            setSelectedEmails([...selectedEmails, email]);
+                                                        }
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${selectedEmails.includes(email)
+                                                        ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                                        : 'bg-white text-slate-500 border-slate-200 opacity-60'
+                                                        }`}
+                                                >
+                                                    {email}
+                                                </button>
+                                            ));
+                                        })()}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2 block">Manual Entry</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            value={customEmail}
+                                            onChange={(e) => setCustomEmail(e.target.value)}
+                                            className="form-input flex-1 font-medium px-4 py-2 rounded-xl border-gray-200 focus:ring-amber-500 text-sm"
+                                            placeholder="Enter extra email address..."
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && customEmail.includes('@')) {
+                                                    e.preventDefault();
+                                                    if (!selectedEmails.includes(customEmail)) {
+                                                        setSelectedEmails([...selectedEmails, customEmail]);
+                                                    }
+                                                    setCustomEmail('');
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                if (customEmail.includes('@')) {
+                                                    if (!selectedEmails.includes(customEmail)) {
+                                                        setSelectedEmails([...selectedEmails, customEmail]);
+                                                    }
+                                                    setCustomEmail('');
+                                                }
+                                            }}
+                                            className="btn-sm bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-xl px-4 font-bold border border-amber-100"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                    <p className="text-[10px] text-muted mt-1.5 px-1">Type an email and click Add or press Enter to include additional recipients.</p>
+                                </div>
+
+                                {selectedEmails.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 pb-2 border-b border-gray-100">
+                                        <div className="text-[10px] font-bold text-amber-600 w-full mb-1">SELECTED RECIPIENTS:</div>
+                                        {selectedEmails.map(email => (
+                                            <span key={email} className="bg-amber-600 text-white px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1.5">
+                                                {email}
+                                                <button type="button" onClick={() => setSelectedEmails(selectedEmails.filter(e => e !== email))} className="hover:text-amber-200">
+                                                    <X size={10} />
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Subject */}
+                            <div>
+                                <label className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2 block">Subject</label>
+                                <input
+                                    value={emailSubject}
+                                    onChange={(e) => setEmailSubject(e.target.value)}
+                                    className="form-input w-full font-semibold px-4 py-3 rounded-xl border-gray-200 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
+                                    placeholder="Enter subject..."
+                                />
+                            </div>
+
+                            {/* Body */}
+                            <div>
+                                <label className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2 block">Email Body</label>
+                                <textarea
+                                    value={emailBody}
+                                    onChange={(e) => setEmailBody(e.target.value)}
+                                    rows={10}
+                                    className="form-input w-full px-4 py-3 rounded-xl border-gray-200 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
+                                    style={{ fontFamily: "'Segoe UI', Roboto, sans-serif", fontSize: '13px', lineHeight: '1.7', color: '#334155' }}
+                                    placeholder="Write your email here..."
+                                />
+                            </div>
+
+                            {/* Attachment Info */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-bold text-muted uppercase tracking-widest mb-2 block">Attachments</label>
+
+                                {/* Auto-attached VIL */}
+                                <div className="p-4 bg-teal-50 border border-teal-100 rounded-2xl flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-teal text-white rounded-xl flex items-center justify-center shrink-0">
+                                        <FileText size={20} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-bold text-teal-800">Visa Invitation Request PDF</div>
+                                        <div className="text-[10px] text-teal-600 truncate">Automatically generated and attached</div>
+                                    </div>
+                                    <div className="bg-teal-100 text-teal-700 px-2 py-0.5 rounded text-[10px] font-bold">REQUIRED</div>
+                                </div>
+
+                                {/* Extra Attachments Picker */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between px-1">
+                                        <p className="text-[10px] text-muted font-medium italic">Select additional documents to attach:</p>
+                                        <label className="cursor-pointer bg-teal/10 text-teal px-3 py-1 rounded-lg text-[9px] font-bold hover:bg-teal/20 transition-all">
+                                            + Upload & Attach
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                multiple
+                                                onChange={(e) => {
+                                                    const files = Array.from(e.target.files);
+                                                    files.forEach(file => uploadAttachment(file));
+                                                    e.target.value = ''; // Reset for next selection
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
+                                    {!documents ? (
+                                        <div className="text-[10px] text-muted italic text-center py-3 bg-gray-50 rounded-xl border border-gray-100">
+                                            Loading documents...
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto px-1 custom-scrollbar pb-1">
+                                            {documents.filter(d => d.docType !== 'visa_invite_letter').map(doc => (
+                                                <button
+                                                    key={doc.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (selectedAttachmentIds.includes(doc.id)) {
+                                                            setSelectedAttachmentIds(selectedAttachmentIds.filter(id => id !== doc.id));
+                                                        } else {
+                                                            setSelectedAttachmentIds([...selectedAttachmentIds, doc.id]);
+                                                        }
+                                                    }}
+                                                    className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all text-left ${selectedAttachmentIds.includes(doc.id)
+                                                        ? 'bg-amber-50 border-amber-200'
+                                                        : 'bg-white border-gray-100 hover:border-gray-200'
+                                                        }`}
+                                                >
+                                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${selectedAttachmentIds.includes(doc.id) ? 'bg-amber-500 text-white' : 'bg-gray-50 text-gray-400'}`}>
+                                                        {doc.mimeType?.includes('image') ? <Camera size={12} /> : <FileText size={12} />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-[10px] font-bold text-slate-700 truncate">{doc.fileName}</div>
+                                                        <div className="text-[8px] text-muted capitalize truncate">{doc.docType?.replace(/_/g, ' ')}</div>
+                                                    </div>
+                                                    {selectedAttachmentIds.includes(doc.id) && <CheckCircle size={12} className="text-amber-500" />}
+                                                </button>
+                                            ))}
+                                            {documents.filter(d => d.docType !== 'visa_invite_letter').length === 0 && (
+                                                <div className="col-span-2 text-[10px] text-muted italic text-center py-3 bg-gray-50 rounded-xl border border-gray-100">
+                                                    No additional documents found.
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="px-8 py-5 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+                            <span className="text-xs text-muted italic">Sending as <strong>marketing@easyheals.com</strong></span>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowEmailModal(false)}
+                                    className="px-6 py-2.5 text-xs font-bold text-slate-600 hover:bg-gray-100 rounded-xl transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => sendVisaEmail.mutate({
+                                        recipientEmails: selectedEmails,
+                                        subject: emailSubject,
+                                        body: emailBody,
+                                        attachmentIds: selectedAttachmentIds
+                                    })}
+                                    disabled={selectedEmails.length === 0 || sendVisaEmail.isPending}
+                                    className="px-8 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all shadow-lg shadow-amber-200"
+                                >
+                                    {sendVisaEmail.isPending ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+                                    Send Email
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -455,7 +795,7 @@ const GENDERS = [
     { value: 'other', label: 'Other' }
 ];
 
-function VisaLetterSection({ lead }) {
+function VisaLetterSection({ lead, onEmailHospital }) {
     const queryClient = useQueryClient();
     const user = useAuth(state => state.user);
     const canFreeze = ['owner', 'admin', 'advisor'].includes(user?.role);
@@ -691,6 +1031,14 @@ function VisaLetterSection({ lead }) {
                     >
                         <FileText size={14} /> View Letter
                     </button>
+                    {isFrozen && (
+                        <button
+                            onClick={() => onEmailHospital()}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-all shadow-sm"
+                        >
+                            <Mail size={14} /> Email Hospital
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -700,9 +1048,16 @@ function VisaLetterSection({ lead }) {
 
             {/* Frozen Banner */}
             {isFrozen && (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-700">
-                    <Lock size={14} />
-                    <span><strong>Locked</strong> — This information has been frozen and cannot be edited.</span>
+                <div className="flex flex-col gap-1 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div className="flex items-center gap-2 text-xs text-blue-700">
+                        <Lock size={14} />
+                        <span><strong>Locked</strong> — This information has been frozen and cannot be edited.</span>
+                    </div>
+                    {lead.visaDataFrozenAt && (
+                        <div className="text-[10px] text-blue-600/70 ml-5 font-bold uppercase tracking-wider">
+                            Finalized on: {new Date(lead.visaDataFrozenAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                    )}
                 </div>
             )}
 
