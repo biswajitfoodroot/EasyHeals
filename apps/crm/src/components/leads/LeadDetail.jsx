@@ -11,8 +11,9 @@ import {
     Calendar, DollarSign, Building2, Stethoscope, User,
     FileText, Clock, Send, Plus, Briefcase, ChevronDown,
     CheckCircle, XCircle, Upload, Printer, Users, Plane, Download,
-    Lock, Unlock, Save, Shield, Scan, Camera, Loader2
+    Lock, Unlock, Save, Shield, Scan, Camera, Loader2, Eye
 } from 'lucide-react';
+
 import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
 

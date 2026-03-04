@@ -72,7 +72,8 @@ export function FileItem({ name, type, size, onRemove, onView }) {
     };
 
     return (
-        <div className="flex items-center gap-3 p- group bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+        <div className="flex items-center gap-3 p-3 group bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+
             <div className="p-3 flex items-center gap-3 flex-1 min-w-0">
                 {getIcon()}
                 <div className="flex-1 min-w-0">
