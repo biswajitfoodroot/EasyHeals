@@ -27,6 +27,70 @@ If a field is not found, return null for that field.
 If the document is not a passport or identity document, return {"error": "Invalid document type"}.
 `;
 
+const MODELS_PRIORITY = [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
+    'gemini-flash-latest'
+];
+
+async function runOCRWithFallback(fileBuffer, mimeType) {
+    let lastError = null;
+
+    for (const modelName of MODELS_PRIORITY) {
+        try {
+            console.log(`[OCR] Attempting with model: ${modelName}`);
+            const model = genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent([
+                OCR_PROMPT,
+                {
+                    inlineData: {
+                        data: fileBuffer.toString('base64'),
+                        mimeType: mimeType
+                    }
+                }
+            ]);
+
+            const response = await result.response;
+            return { data: response.text(), model: modelName };
+        } catch (error) {
+            console.warn(`[OCR] Model ${modelName} failed:`, error.message);
+            lastError = error;
+            // Continue to next model
+        }
+    }
+    throw lastError;
+}
+
+// GET /ocr/health — Diagnostic endpoint
+router.get('/health', async (req, res) => {
+    try {
+        if (!process.env.GEMINI_API_KEY) {
+            return res.status(500).json({ status: 'error', message: 'API Key missing' });
+        }
+
+        const results = [];
+        for (const name of MODELS_PRIORITY) {
+            try {
+                const model = genAI.getGenerativeModel({ model: name });
+                // Minimal check
+                await model.generateContent('ping');
+                results.push({ name, status: 'ok' });
+            } catch (e) {
+                results.push({ name, status: 'failed', error: e.message });
+            }
+        }
+
+        res.json({
+            status: results.some(r => r.status === 'ok') ? 'ok' : 'error',
+            models: results,
+            apiKeyPrefix: process.env.GEMINI_API_KEY.substring(0, 8) + '...'
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.post('/scan-passport', upload.single('file'), async (req, res) => {
     try {
         if (!process.env.GEMINI_API_KEY) {
@@ -37,20 +101,7 @@ router.post('/scan-passport', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-        const result = await model.generateContent([
-            OCR_PROMPT,
-            {
-                inlineData: {
-                    data: req.file.buffer.toString('base64'),
-                    mimeType: req.file.mimetype
-                }
-            }
-        ]);
-
-        const response = await result.response;
-        const text = response.text();
+        const { data: text, model: usedModel } = await runOCRWithFallback(req.file.buffer, req.file.mimetype);
 
         // Extract JSON from markdown if Gemini wraps it
         const jsonString = text.replace(/```json\n?|```/g, '').trim();
@@ -60,20 +111,24 @@ router.post('/scan-passport', upload.single('file'), async (req, res) => {
             data = JSON.parse(jsonString);
         } catch (parseErr) {
             console.error('Gemini response was not valid JSON:', text);
-            return res.status(500).json({ error: 'Gemini returned unexpected response', raw: text });
+            return res.status(500).json({
+                error: 'Gemini returned unexpected response',
+                raw: text,
+                modelUsed: usedModel
+            });
         }
 
         if (data.error) {
-            return res.status(422).json(data);
+            return res.status(422).json({ ...data, modelUsed: usedModel });
         }
 
-        res.json(data);
+        res.json({ ...data, modelUsed: usedModel });
     } catch (error) {
         console.error('Passport OCR Error:', error);
         res.status(500).json({
-            error: 'Failed to process document',
+            error: 'Failed to process document. All models exhausted.',
             message: error.message,
-            stack: error.stack
+            modelList: MODELS_PRIORITY
         });
     }
 });
