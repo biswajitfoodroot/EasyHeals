@@ -1267,6 +1267,7 @@ router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (re
 
         await sendEmail({
             to: toAddress,
+            cc: 'biswajit_saha@easyheals.com',
             subject: finalSubject,
             text: contentBody,
             html: bodyHtml,

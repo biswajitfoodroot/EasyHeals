@@ -401,6 +401,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                             )}
                             {documents?.map(doc => (
                                 <FileItem key={doc.id} name={doc.fileName} type={doc.mimeType} size={doc.fileSize}
+                                    onView={() => window.open(`${api.defaults.baseURL}${doc.fileUrl}`, '_blank')}
                                     onRemove={() => { if (confirm('Delete this document?')) deleteDoc.mutate(doc.id); }} />
                             ))}
                         </div>
@@ -641,7 +642,20 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                                                         <div className="text-[10px] font-bold text-slate-700 truncate">{doc.fileName}</div>
                                                         <div className="text-[8px] text-muted capitalize truncate">{doc.docType?.replace(/_/g, ' ')}</div>
                                                     </div>
-                                                    {selectedAttachmentIds.includes(doc.id) && <CheckCircle size={12} className="text-amber-500" />}
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                window.open(`${api.defaults.baseURL}${doc.fileUrl}`, '_blank');
+                                                            }}
+                                                            className="p-1.5 hover:bg-amber-100 rounded text-amber-600 transition-colors"
+                                                            title="View Document"
+                                                        >
+                                                            <Eye size={12} />
+                                                        </button>
+                                                        {selectedAttachmentIds.includes(doc.id) && <CheckCircle size={12} className="text-amber-500" />}
+                                                    </div>
                                                 </button>
                                             ))}
                                             {documents.filter(d => d.docType !== 'visa_invite_letter').length === 0 && (

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Upload, X, FileText, Image, File } from 'lucide-react';
+import { Upload, X, FileText, Image, File, Eye } from 'lucide-react';
 
 export default function FileUpload({ onUpload, accept = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx', maxSizeMB = 10, disabled = false }) {
     const inputRef = useRef(null);
@@ -57,7 +57,7 @@ export default function FileUpload({ onUpload, accept = '.pdf,.jpg,.jpeg,.png,.w
 }
 
 // File preview item
-export function FileItem({ name, type, size, onRemove }) {
+export function FileItem({ name, type, size, onRemove, onView }) {
     const getIcon = () => {
         if (type?.includes('pdf')) return <FileText size={16} className="text-red-500" />;
         if (type?.includes('image')) return <Image size={16} className="text-blue-500" />;
@@ -72,20 +72,35 @@ export function FileItem({ name, type, size, onRemove }) {
     };
 
     return (
-        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl group">
-            {getIcon()}
-            <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{name}</p>
-                <p className="text-[10px] text-muted">{formatSize(size)}</p>
+        <div className="flex items-center gap-3 p- group bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+            <div className="p-3 flex items-center gap-3 flex-1 min-w-0">
+                {getIcon()}
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{name}</p>
+                    <p className="text-[10px] text-muted">{formatSize(size)}</p>
+                </div>
             </div>
-            {onRemove && (
-                <button
-                    onClick={onRemove}
-                    className="p-1 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 rounded transition-all"
-                >
-                    <X size={14} />
-                </button>
-            )}
+            <div className="flex items-center gap-1 pr-2">
+                {onView && (
+                    <button
+                        onClick={onView}
+                        className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+                        title="View File"
+                    >
+                        <Eye size={16} />
+                    </button>
+                )}
+                {onRemove && (
+                    <button
+                        onClick={onRemove}
+                        className="p-2 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-lg transition-all"
+                        title="Remove File"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
+            </div>
         </div>
     );
 }
+
