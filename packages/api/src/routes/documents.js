@@ -93,8 +93,18 @@ router.get('/leads/:leadId/documents', authenticateToken, async (req, res) => {
 // POST /leads/:leadId/documents
 router.post('/leads/:leadId/documents', authenticateToken, upload.single('file'), async (req, res) => {
     try {
+        const { leadId } = req.params;
+        logger.info(`[documents] Upload request for lead: ${leadId}`);
+
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        // 1. Check if lead exists first
+        const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+        if (!lead) {
+            logger.warn(`[documents] Lead not found: ${leadId}`);
+            return res.status(404).json({ error: 'Lead not found. Cannot attach document.' });
         }
 
         const docType = req.body.docType || 'other';
@@ -103,21 +113,32 @@ router.post('/leads/:leadId/documents', authenticateToken, upload.single('file')
 
         if (isVercel) {
             // ── Vercel Blob upload ────────────────────────────────────────────
-            const blobPath = `uploads/${req.params.leadId}/${Date.now()}-${req.file.originalname}`;
+            if (!process.env.BLOB_READ_WRITE_TOKEN) {
+                logger.error('[documents] BLOB_READ_WRITE_TOKEN is missing in environment');
+                return res.status(500).json({
+                    error: 'Configuration Error',
+                    detail: 'BLOB_READ_WRITE_TOKEN is not configured on the server.'
+                });
+            }
+
+            const blobPath = `uploads/${leadId}/${Date.now()}-${req.file.originalname}`;
             logger.info(`[documents] Uploading to Vercel Blob: ${blobPath}`);
+
             const blob = await blobPut(blobPath, req.file.buffer, {
                 access: 'public',
                 contentType: req.file.mimetype,
             });
             fileUrl = blob.url; // persistent public URL
-            logger.info(`[documents] Blob uploaded: ${fileUrl}`);
+            logger.info(`[documents] Blob uploaded successfully: ${fileUrl}`);
         } else {
             // ── Local disk ───────────────────────────────────────────────────
-            fileUrl = `/uploads/${req.params.leadId}/${req.file.filename}`;
+            fileUrl = `/uploads/${leadId}/${req.file.filename}`;
+            logger.info(`[documents] File saved locally: ${fileUrl}`);
         }
 
+        logger.info(`[documents] Inserting document metadata into DB for lead: ${leadId}`);
         const [newDoc] = await db.insert(documents).values({
-            leadId: req.params.leadId,
+            leadId: leadId,
             docType,
             fileName: req.file.originalname,
             fileUrl,
@@ -127,18 +148,28 @@ router.post('/leads/:leadId/documents', authenticateToken, upload.single('file')
             notes,
         }).returning();
 
-        // Log activity
-        await db.insert(activities).values({
-            leadId: req.params.leadId,
-            type: 'document_uploaded',
-            description: `${docType.replace('_', ' ')} uploaded: ${req.file.originalname}`,
-            performedBy: req.user.id,
-        });
+        // 2. Log activity (Wrap in try-catch so failure here doesn't block the response)
+        try {
+            logger.info(`[documents] Logging activity for lead: ${leadId}`);
+            await db.insert(activities).values({
+                leadId: leadId,
+                type: 'document_uploaded',
+                description: `${docType.replace('_', ' ')} uploaded: ${req.file.originalname}`,
+                performedBy: req.user.id,
+            });
+        } catch (actErr) {
+            logger.error('[documents] Failed to log activity:', actErr.message);
+            // We don't throw here, so the user still gets their successful upload response
+        }
 
         res.status(201).json(newDoc);
     } catch (error) {
         logger.error('Error uploading document:', error.message, error.stack);
-        res.status(500).json({ error: 'Internal Server Error', detail: error.message });
+        res.status(500).json({
+            error: 'Internal Server Error',
+            detail: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
