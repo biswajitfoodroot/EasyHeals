@@ -11,7 +11,7 @@ import {
     Calendar, DollarSign, Building2, Stethoscope, User,
     FileText, Clock, Send, Plus, Briefcase, ChevronDown,
     CheckCircle, XCircle, Upload, Printer, Users, Plane, Download,
-    Lock, Unlock, Save, Shield, Scan, Camera, Loader2, Eye
+    Lock, Unlock, Save, Shield, Scan, Camera, Loader2, Eye as EyeIcon
 } from 'lucide-react';
 
 import toast from 'react-hot-toast';
@@ -64,7 +64,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('docType', selectedDocType);
-            return api.post(`/leads/${lead.id}/documents`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            return api.post(`/leads/${lead.id}/documents`, formData);
         },
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['documents', lead.id] }); toast.success('Document uploaded'); },
     });
@@ -92,7 +92,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
         mutationFn: (file) => {
             const fd = new FormData();
             fd.append('file', file);
-            return api.post(`/leads/${lead.id}/visa-letters`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            return api.post(`/leads/${lead.id}/visa-letters`, fd);
         },
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['documents', lead.id] }); toast.success('Visa invite letter uploaded'); },
     });
@@ -161,16 +161,17 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
     };
 
     const uploadAttachment = async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('docType', 'other');
         try {
-            const res = await api.post(`/leads/${lead.id}/documents`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('docType', 'other');
+            const res = await api.post(`/leads/${lead.id}/documents`, formData);
             queryClient.invalidateQueries({ queryKey: ['documents', lead.id] });
             setSelectedAttachmentIds(prev => [...prev, res.data.id]);
             toast.success('Document uploaded and attached');
         } catch (err) {
-            toast.error('Upload failed');
+            console.error('Upload Error:', err);
+            toast.error(err.response?.data?.error || 'Upload failed');
         }
     };
 
@@ -442,7 +443,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                                 </h3>
                                 <p className="text-xs text-muted font-medium mt-0.5">Prepare and send the Visa Invitation Letter request</p>
                             </div>
-                            <button onClick={() => setShowEmailModal(false)} className="p-2.5 hover:bg-gray-200 rounded-xl transition-colors">
+                            <button onClick={() => { setShowEmailModal(false); setSelectedAttachmentIds([]); setSelectedEmails([]); }} className="p-2.5 hover:bg-gray-200 rounded-xl transition-colors">
                                 <X size={20} className="text-slate-500" />
                             </button>
                         </div>
@@ -621,9 +622,8 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                                     ) : (
                                         <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto px-1 custom-scrollbar pb-1">
                                             {documents.filter(d => d.docType !== 'visa_invite_letter').map(doc => (
-                                                <button
+                                                <div
                                                     key={doc.id}
-                                                    type="button"
                                                     onClick={() => {
                                                         if (selectedAttachmentIds.includes(doc.id)) {
                                                             setSelectedAttachmentIds(selectedAttachmentIds.filter(id => id !== doc.id));
@@ -631,9 +631,9 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                                                             setSelectedAttachmentIds([...selectedAttachmentIds, doc.id]);
                                                         }
                                                     }}
-                                                    className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all text-left ${selectedAttachmentIds.includes(doc.id)
+                                                    className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all cursor-pointer ${selectedAttachmentIds.includes(doc.id)
                                                         ? 'bg-amber-50 border-amber-200'
-                                                        : 'bg-white border-gray-100 hover:border-gray-200'
+                                                        : 'bg-white border-gray-100 hover:border-gray-200 shadow-sm'
                                                         }`}
                                                 >
                                                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${selectedAttachmentIds.includes(doc.id) ? 'bg-amber-500 text-white' : 'bg-gray-50 text-gray-400'}`}>
@@ -650,14 +650,25 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                                                                 e.stopPropagation();
                                                                 window.open(`${api.defaults.baseURL}${doc.fileUrl}`, '_blank');
                                                             }}
-                                                            className="p-1.5 hover:bg-amber-100 rounded text-amber-600 transition-colors"
+                                                            className="p-1.5 hover:bg-amber-200/50 rounded-lg text-amber-600 transition-colors"
                                                             title="View Document"
                                                         >
-                                                            <Eye size={12} />
+                                                            <EyeIcon size={12} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm('Delete this document permanently?')) deleteDoc.mutate(doc.id);
+                                                            }}
+                                                            className="p-1.5 hover:bg-red-50 rounded-lg text-red-400 transition-colors"
+                                                            title="Delete Permanently"
+                                                        >
+                                                            <X size={12} />
                                                         </button>
                                                         {selectedAttachmentIds.includes(doc.id) && <CheckCircle size={12} className="text-amber-500" />}
                                                     </div>
-                                                </button>
+                                                </div>
                                             ))}
                                             {documents.filter(d => d.docType !== 'visa_invite_letter').length === 0 && (
                                                 <div className="col-span-2 text-[10px] text-muted italic text-center py-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -674,7 +685,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                             <span className="text-xs text-muted italic">Sending as <strong>marketing@easyheals.com</strong></span>
                             <div className="flex gap-3">
                                 <button
-                                    onClick={() => setShowEmailModal(false)}
+                                    onClick={() => { setShowEmailModal(false); setSelectedAttachmentIds([]); setSelectedEmails([]); }}
                                     className="px-6 py-2.5 text-xs font-bold text-slate-600 hover:bg-gray-100 rounded-xl transition-all"
                                 >
                                     Cancel

@@ -62,6 +62,7 @@ const upload = multer({
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
+            console.warn(`[documents] REJECTED file type: ${file.mimetype} for ${file.originalname}`);
             cb(new Error('File type not allowed. Accepted: PDF, JPEG, PNG, WebP, DOC, DOCX'));
         }
     }

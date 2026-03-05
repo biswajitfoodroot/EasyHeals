@@ -96,6 +96,7 @@ app.use((err, req, res, next) => {
 
     // Multer file type error
     if (err.message && err.message.includes('File type not allowed')) {
+        console.warn('[app] Multer file type error:', err.message);
         return res.status(400).json({ error: err.message });
     }
 

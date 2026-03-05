@@ -1248,17 +1248,27 @@ router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (re
 
         // Add extra attachments if requested
         if (attachmentIds && Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+            logger.info(`[API] visaUploadDir: ${visaUploadDir}`);
+            logger.info(`[API] Fetching ${attachmentIds.length} extra attachments from DB: ${JSON.stringify(attachmentIds)}`);
             const extraDocs = await db.select().from(documents).where(inArray(documents.id, attachmentIds));
+            logger.info(`[API] Found ${extraDocs.length} docs in DB`);
             for (const docInfo of extraDocs) {
-                // Map /uploads/... to actual disk path
-                const filePath = path.join(visaUploadDir, docInfo.fileUrl.replace('/uploads/', ''));
+                // Strip any leading /uploads/ or uploads/ prefix robustly
+                const relativePath = docInfo.fileUrl.replace(/^\/?(uploads\/)?/, '');
+                const filePath = path.join(visaUploadDir, relativePath);
+                logger.info(`[API] Checking attachment: "${docInfo.fileName}" | fileUrl="${docInfo.fileUrl}" | filePath="${filePath}"`);
+
                 if (fs.existsSync(filePath)) {
+                    logger.info(`[API] ✅ Attachment FOUND on disk: ${docInfo.fileName}`);
                     finalAttachments.push({
                         filename: docInfo.fileName,
                         content: fs.readFileSync(filePath)
                     });
+                } else {
+                    logger.error(`[API] ❌ Attachment NOT FOUND on disk: "${docInfo.fileName}" at "${filePath}"`);
                 }
             }
+            logger.info(`[API] Total attachments to send: ${finalAttachments.length} (including VIL PDF)`);
         }
 
         const toAddress = (recipientEmails && Array.isArray(recipientEmails) && recipientEmails.length > 0)
