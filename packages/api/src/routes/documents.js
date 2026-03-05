@@ -91,7 +91,27 @@ router.get('/leads/:leadId/documents', authenticateToken, async (req, res) => {
 });
 
 // POST /leads/:leadId/documents
-router.post('/leads/:leadId/documents', authenticateToken, upload.single('file'), async (req, res) => {
+// Wrap multer in a promise so Express 5 error handling works correctly with multer 1.x
+function runMulter(req, res) {
+    return new Promise((resolve, reject) => {
+        upload.single('file')(req, res, (err) => {
+            if (err) reject(err);
+            else resolve();
+        });
+    });
+}
+
+router.post('/leads/:leadId/documents', authenticateToken, async (req, res) => {
+    // Run multer manually so errors are catchable in our try/catch
+    try {
+        await runMulter(req, res);
+    } catch (multerErr) {
+        logger.warn('[documents] Multer error:', multerErr.message);
+        if (multerErr.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ error: 'File too large. Maximum size is 10MB.' });
+        }
+        return res.status(400).json({ error: multerErr.message || 'File upload error.' });
+    }
     try {
         const { leadId } = req.params;
         logger.info(`[documents] Upload request for lead: ${leadId}`);
@@ -121,13 +141,25 @@ router.post('/leads/:leadId/documents', authenticateToken, upload.single('file')
                 });
             }
 
-            const blobPath = `uploads/${leadId}/${Date.now()}-${req.file.originalname}`;
+            // Sanitize filename: replace spaces and special chars to avoid URL issues
+            const safeFilename = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const blobPath = `uploads/${leadId}/${Date.now()}-${safeFilename}`;
             logger.info(`[documents] Uploading to Vercel Blob: ${blobPath}`);
 
-            const blob = await blobPut(blobPath, req.file.buffer, {
-                access: 'public',
-                contentType: req.file.mimetype,
-            });
+            let blob;
+            try {
+                blob = await blobPut(blobPath, req.file.buffer, {
+                    access: 'public',
+                    contentType: req.file.mimetype,
+                    token: process.env.BLOB_READ_WRITE_TOKEN,
+                });
+            } catch (blobErr) {
+                logger.error('[documents] Vercel Blob upload FAILED:', blobErr.message, blobErr.stack);
+                return res.status(500).json({
+                    error: 'File storage error',
+                    detail: blobErr.message
+                });
+            }
             fileUrl = blob.url; // persistent public URL
             logger.info(`[documents] Blob uploaded successfully: ${fileUrl}`);
         } else {
@@ -164,11 +196,16 @@ router.post('/leads/:leadId/documents', authenticateToken, upload.single('file')
 
         res.status(201).json(newDoc);
     } catch (error) {
-        logger.error('Error uploading document:', error.message, error.stack);
+        logger.error('[documents] UNHANDLED Error uploading document:', {
+            message: error.message,
+            code: error.code,
+            name: error.name,
+            stack: error.stack,
+        });
         res.status(500).json({
             error: 'Internal Server Error',
             detail: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            code: error.code,
         });
     }
 });
