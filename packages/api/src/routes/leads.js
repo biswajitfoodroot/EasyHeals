@@ -10,6 +10,7 @@ import { requireAdmin } from '../middleware/roleCheck.js';
 import { validate } from '../middleware/validate.js';
 import { requireAdvisor } from '../middleware/roles.js';
 import { sendEmail } from '../services/emailService.js';
+import { del as blobDel } from '@vercel/blob';
 import PDFDocument from 'pdfkit';
 import multer from 'multer';
 import path from 'path';
@@ -1304,8 +1305,7 @@ router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (re
             for (const doc of tempDocs) {
                 try {
                     if (process.env.VERCEL && doc.fileUrl.startsWith('http')) {
-                        const { del } = await import('@vercel/blob');
-                        await del(doc.fileUrl);
+                        await blobDel(doc.fileUrl);
                     } else {
                         const rel = doc.fileUrl.replace(/^\/?(uploads\/)?/, '');
                         const fp = path.join(visaUploadDir, rel);

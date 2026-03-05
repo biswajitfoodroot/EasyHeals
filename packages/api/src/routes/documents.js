@@ -9,6 +9,7 @@ import { documents, activities } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
+import { put as blobPut, del as blobDel } from '@vercel/blob';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,13 +103,14 @@ router.post('/leads/:leadId/documents', authenticateToken, upload.single('file')
 
         if (isVercel) {
             // ── Vercel Blob upload ────────────────────────────────────────────
-            const { put } = await import('@vercel/blob');
             const blobPath = `uploads/${req.params.leadId}/${Date.now()}-${req.file.originalname}`;
-            const blob = await put(blobPath, req.file.buffer, {
+            logger.info(`[documents] Uploading to Vercel Blob: ${blobPath}`);
+            const blob = await blobPut(blobPath, req.file.buffer, {
                 access: 'public',
                 contentType: req.file.mimetype,
             });
-            fileUrl = blob.url; // persistent public URL, e.g. https://xxx.public.blob.vercel-storage.com/...
+            fileUrl = blob.url; // persistent public URL
+            logger.info(`[documents] Blob uploaded: ${fileUrl}`);
         } else {
             // ── Local disk ───────────────────────────────────────────────────
             fileUrl = `/uploads/${req.params.leadId}/${req.file.filename}`;
@@ -135,8 +137,8 @@ router.post('/leads/:leadId/documents', authenticateToken, upload.single('file')
 
         res.status(201).json(newDoc);
     } catch (error) {
-        logger.error('Error uploading document:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        logger.error('Error uploading document:', error.message, error.stack);
+        res.status(500).json({ error: 'Internal Server Error', detail: error.message });
     }
 });
 
@@ -151,8 +153,7 @@ router.delete('/documents/:id', authenticateToken, async (req, res) => {
         if (isVercel && doc.fileUrl.startsWith('http')) {
             // Delete from Vercel Blob
             try {
-                const { del } = await import('@vercel/blob');
-                await del(doc.fileUrl);
+                await blobDel(doc.fileUrl);
             } catch (e) {
                 logger.warn(`[documents] Could not delete blob: ${e.message}`);
             }
