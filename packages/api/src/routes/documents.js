@@ -141,8 +141,10 @@ router.post('/leads/:leadId/documents', authenticateToken, async (req, res) => {
                 });
             }
 
-            // Sanitize filename: replace spaces and special chars to avoid URL issues
-            const safeFilename = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+            // Sanitize filename: preserve extension separately (Vercel Blob uses extension for content-type)
+            const fileExt = path.extname(req.file.originalname);
+            const fileBase = path.basename(req.file.originalname, fileExt).replace(/[^a-zA-Z0-9._-]/g, '_');
+            const safeFilename = `${fileBase}${fileExt}`;
             const blobPath = `uploads/${leadId}/${Date.now()}-${safeFilename}`;
             logger.info(`[documents] Uploading to Vercel Blob: ${blobPath}`);
 
@@ -150,6 +152,7 @@ router.post('/leads/:leadId/documents', authenticateToken, async (req, res) => {
             try {
                 blob = await blobPut(blobPath, req.file.buffer, {
                     access: 'public',
+                    allowOverwrite: true,
                     contentType: req.file.mimetype,
                     token: process.env.BLOB_READ_WRITE_TOKEN,
                 });
