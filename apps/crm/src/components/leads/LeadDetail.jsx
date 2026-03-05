@@ -403,7 +403,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                             )}
                             {documents?.map(doc => (
                                 <FileItem key={doc.id} name={doc.fileName} type={doc.mimeType} size={doc.fileSize}
-                                    onView={() => window.open(`${api.defaults.baseURL}${doc.fileUrl}`, '_blank')}
+                                    onView={() => window.open(`${api.defaults.baseURL}/documents/${doc.id}/download`, '_blank')}
                                     onRemove={() => { if (confirm('Delete this document?')) deleteDoc.mutate(doc.id); }} />
                             ))}
                         </div>
@@ -621,7 +621,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto px-1 custom-scrollbar pb-1">
-                                            {documents.filter(d => d.docType !== 'visa_invite_letter' && d.docType !== 'email_attachment').map(doc => (
+                                            {documents.filter(d => d.docType !== 'visa_invite_letter').map(doc => (
                                                 <div
                                                     key={doc.id}
                                                     onClick={() => {
@@ -648,7 +648,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                                                             type="button"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                window.open(`${api.defaults.baseURL}${doc.fileUrl}`, '_blank');
+                                                                window.open(`${api.defaults.baseURL}/documents/${doc.id}/download`, '_blank');
                                                             }}
                                                             className="p-1.5 hover:bg-amber-200/50 rounded-lg text-amber-600 transition-colors"
                                                             title="View Document"

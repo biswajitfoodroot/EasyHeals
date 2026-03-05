@@ -267,8 +267,31 @@ router.get('/documents/:id/download', authenticateToken, async (req, res) => {
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
         if (isVercel && doc.fileUrl.startsWith('http')) {
-            // Redirect to Vercel Blob URL for download
-            return res.redirect(doc.fileUrl);
+            // Since the store is PRIVATE, we cannot redirect (the browser would get 403).
+            // Instead, the API must fetch the data with the token and stream it to the user.
+            try {
+                logger.info(`[documents] Streaming private blob for download: ${doc.fileName}`);
+                const blobRes = await fetch(doc.fileUrl, {
+                    headers: { 'Authorization': `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` }
+                });
+
+                if (!blobRes.ok) throw new Error(`Blob fetch ${blobRes.status}`);
+
+                res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+                res.setHeader('Content-Disposition', `attachment; filename="${doc.fileName}"`);
+
+                // Stream response using web streams
+                const reader = blobRes.body.getReader();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    res.write(value);
+                }
+                return res.end();
+            } catch (err) {
+                logger.error('[documents] Failed to stream private blob:', err.message);
+                return res.status(500).json({ error: 'Failed to access private storage', detail: err.message });
+            }
         }
 
         const filePath = path.resolve(__dirname, '../../../..', doc.fileUrl.replace(/^\//, ''));

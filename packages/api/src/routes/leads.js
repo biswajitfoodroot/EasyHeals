@@ -1258,9 +1258,14 @@ router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (re
                     let fileContent;
                     if (docInfo.fileUrl.startsWith('http')) {
                         // Vercel Blob URL: fetch content via HTTP (persistent, shared across instances)
-                        logger.info('[API] Fetching blob attachment: ' + docInfo.fileName);
-                        const blobRes = await fetch(docInfo.fileUrl);
-                        if (!blobRes.ok) throw new Error('Blob fetch HTTP ' + blobRes.status);
+                        // Vercel Blob URL: fetch content via HTTP with token authentication
+                        logger.info('[API] Fetching PRIVATE blob attachment: ' + docInfo.fileName);
+                        const blobRes = await fetch(docInfo.fileUrl, {
+                            headers: {
+                                'Authorization': `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`
+                            }
+                        });
+                        if (!blobRes.ok) throw new Error(`Blob fetch ${blobRes.status}: ${blobRes.statusText}`);
                         fileContent = Buffer.from(await blobRes.arrayBuffer());
                     } else {
                         // Local disk path
@@ -1295,9 +1300,8 @@ router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (re
             attachments: finalAttachments
         });
 
-        // ── Temporary Attachment Cleanup ─────────────────────────────────────
-        // If any attachments were uploaded specifically for this email (marked 'email_attachment'),
-        // delete them from storage and DB after sending to keep storage clean/private.
+        // ── Attachment Cleanup (Commented out to allow persistence) ──────────
+        /*
         if (attachmentIds && Array.isArray(attachmentIds) && attachmentIds.length > 0) {
             const tempDocs = await db.select().from(documents)
                 .where(and(inArray(documents.id, attachmentIds), eq(documents.docType, 'email_attachment')));
@@ -1318,6 +1322,7 @@ router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (re
                 }
             }
         }
+        */
 
         const loggedRecipients = Array.isArray(toAddress) ? toAddress.join(', ') : toAddress;
         await db.insert(activities).values({
