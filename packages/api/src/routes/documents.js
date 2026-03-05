@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { db } from '../db/index.js';
-import { documents, activities } from '../db/schema.js';
+import { leads, documents, activities } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
 import { authenticateToken } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
