@@ -160,7 +160,7 @@ router.post('/leads/:leadId/documents', authenticateToken, async (req, res) => {
             let blob;
             try {
                 blob = await blobPut(blobPath, req.file.buffer, {
-                    access: 'public',
+                    access: 'private',
                     allowOverwrite: true,
                     contentType: req.file.mimetype,
                     token: process.env.BLOB_READ_WRITE_TOKEN,
