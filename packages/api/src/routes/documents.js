@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import util from 'util';
 import { db } from '../db/index.js';
 import { leads, documents, activities } from '../db/schema.js';
 import { eq, desc } from 'drizzle-orm';
@@ -146,7 +147,15 @@ router.post('/leads/:leadId/documents', authenticateToken, async (req, res) => {
             const fileBase = path.basename(req.file.originalname, fileExt).replace(/[^a-zA-Z0-9._-]/g, '_');
             const safeFilename = `${fileBase}${fileExt}`;
             const blobPath = `uploads/${leadId}/${Date.now()}-${safeFilename}`;
-            logger.info(`[documents] Uploading to Vercel Blob: ${blobPath}`);
+
+            logger.info(`[documents] Attempting Vercel Blob upload:`, {
+                path: blobPath,
+                mime: req.file.mimetype,
+                bufferSize: req.file.buffer ? req.file.buffer.length : 'MISSING',
+                tokenPresent: !!process.env.BLOB_READ_WRITE_TOKEN,
+                tokenPeek: process.env.BLOB_READ_WRITE_TOKEN ? `...${process.env.BLOB_READ_WRITE_TOKEN.slice(-4)}` : 'none',
+                sdkType: typeof blobPut
+            });
 
             let blob;
             try {
@@ -157,10 +166,15 @@ router.post('/leads/:leadId/documents', authenticateToken, async (req, res) => {
                     token: process.env.BLOB_READ_WRITE_TOKEN,
                 });
             } catch (blobErr) {
-                logger.error('[documents] Vercel Blob upload FAILED:', blobErr.message, blobErr.stack);
+                // Log the COMPLETE error object using util.inspect to see everything
+                const errorDetail = util.inspect(blobErr, { depth: null, colors: false });
+                logger.error(`[documents] Vercel Blob upload FAILED: ${blobErr.message || 'No message'}`);
+                logger.error(`[documents] Full Error Object: ${errorDetail}`);
+
                 return res.status(500).json({
                     error: 'File storage error',
-                    detail: blobErr.message
+                    detail: blobErr.message,
+                    code: blobErr.code
                 });
             }
             fileUrl = blob.url; // persistent public URL
