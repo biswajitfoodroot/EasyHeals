@@ -164,7 +164,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('docType', 'other');
+            formData.append('docType', 'email_attachment'); // temporary — deleted after email is sent
             const res = await api.post(`/leads/${lead.id}/documents`, formData);
             queryClient.invalidateQueries({ queryKey: ['documents', lead.id] });
             setSelectedAttachmentIds(prev => [...prev, res.data.id]);
@@ -621,7 +621,7 @@ export default function LeadDetail({ lead, triggerEmail, onClose, onEdit }) {
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto px-1 custom-scrollbar pb-1">
-                                            {documents.filter(d => d.docType !== 'visa_invite_letter').map(doc => (
+                                            {documents.filter(d => d.docType !== 'visa_invite_letter' && d.docType !== 'email_attachment').map(doc => (
                                                 <div
                                                     key={doc.id}
                                                     onClick={() => {

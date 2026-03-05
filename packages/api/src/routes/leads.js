@@ -1294,6 +1294,31 @@ router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (re
             attachments: finalAttachments
         });
 
+        // ── Temporary Attachment Cleanup ─────────────────────────────────────
+        // If any attachments were uploaded specifically for this email (marked 'email_attachment'),
+        // delete them from storage and DB after sending to keep storage clean/private.
+        if (attachmentIds && Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+            const tempDocs = await db.select().from(documents)
+                .where(and(inArray(documents.id, attachmentIds), eq(documents.docType, 'email_attachment')));
+
+            for (const doc of tempDocs) {
+                try {
+                    if (process.env.VERCEL && doc.fileUrl.startsWith('http')) {
+                        const { del } = await import('@vercel/blob');
+                        await del(doc.fileUrl);
+                    } else {
+                        const rel = doc.fileUrl.replace(/^\/?(uploads\/)?/, '');
+                        const fp = path.join(visaUploadDir, rel);
+                        if (fs.existsSync(fp)) fs.unlinkSync(fp);
+                    }
+                    await db.delete(documents).where(eq(documents.id, doc.id));
+                    logger.info(`[API] Temp attachment cleaned up: ${doc.fileName}`);
+                } catch (err) {
+                    logger.error(`[API] Failed to clean up temp attachment ${doc.id}: ${err.message}`);
+                }
+            }
+        }
+
         const loggedRecipients = Array.isArray(toAddress) ? toAddress.join(', ') : toAddress;
         await db.insert(activities).values({
             leadId: id,
