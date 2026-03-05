@@ -949,7 +949,10 @@ router.post('/:id/verify', authenticateToken, requireAdvisor, async (req, res) =
 });
 
 // POST /leads/:id/visa-letters — Upload visa invite letter (advisor only)
-const visaUploadDir = path.resolve(__dirname2, '../../../../uploads');
+// On Vercel, filesystem is read-only outside /tmp — must match documents.js upload path
+const visaUploadDir = process.env.VERCEL
+    ? '/tmp/uploads'
+    : path.resolve(__dirname2, '../../../../uploads');
 const visaStorage = multer.diskStorage({
     destination: (req, file, cb) => {
         const dir = path.join(visaUploadDir, req.params.id);
