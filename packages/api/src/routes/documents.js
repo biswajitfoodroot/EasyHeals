@@ -15,39 +15,44 @@ const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
-// On Vercel, the filesystem is read-only outside /tmp — use /tmp for uploads in production
+// ── Storage Strategy ─────────────────────────────────────────────────────────
+// On Vercel, /tmp is ephemeral and NOT shared across function instances.
+// We use Vercel Blob (persistent cloud storage) in production.
+// Locally, files are saved to disk as before.
 const isVercel = !!process.env.VERCEL;
-const uploadDir = isVercel
-    ? '/tmp/uploads'
-    : path.resolve(__dirname, '../../../../uploads');
 
-try {
-    if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
+// Local disk storage (used only outside Vercel)
+const localUploadDir = path.resolve(__dirname, '../../../../uploads');
+
+if (!isVercel) {
+    try {
+        if (!fs.existsSync(localUploadDir)) {
+            fs.mkdirSync(localUploadDir, { recursive: true });
+        }
+    } catch (e) {
+        console.warn('[documents] Could not create uploadDir at startup:', e.message);
     }
-} catch (e) {
-    // Filesystem may be read-only (e.g. Vercel). Directory creation handled per-request.
-    console.warn('[documents] Could not create uploadDir at startup:', e.message);
 }
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const leadDir = path.join(uploadDir, req.params.leadId || 'misc');
-        try {
-            if (!fs.existsSync(leadDir)) {
-                fs.mkdirSync(leadDir, { recursive: true });
+// Multer: memory storage on Vercel (we stream to Blob), disk storage locally
+const storage = isVercel
+    ? multer.memoryStorage()
+    : multer.diskStorage({
+        destination: (req, file, cb) => {
+            const leadDir = path.join(localUploadDir, req.params.leadId || 'misc');
+            try {
+                if (!fs.existsSync(leadDir)) fs.mkdirSync(leadDir, { recursive: true });
+            } catch (e) {
+                console.warn('[documents] Could not create leadDir:', e.message);
             }
-        } catch (e) {
-            console.warn('[documents] Could not create leadDir:', e.message);
+            cb(null, leadDir);
+        },
+        filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const ext = path.extname(file.originalname);
+            cb(null, `${uniqueSuffix}${ext}`);
         }
-        cb(null, leadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, `${uniqueSuffix}${ext}`);
-    }
-});
+    });
 
 const upload = multer({
     storage,
@@ -67,6 +72,8 @@ const upload = multer({
         }
     }
 });
+
+// ── Routes ───────────────────────────────────────────────────────────────────
 
 // GET /leads/:leadId/documents
 router.get('/leads/:leadId/documents', authenticateToken, async (req, res) => {
@@ -91,8 +98,21 @@ router.post('/leads/:leadId/documents', authenticateToken, upload.single('file')
 
         const docType = req.body.docType || 'other';
         const notes = req.body.notes || '';
+        let fileUrl;
 
-        const fileUrl = `/uploads/${req.params.leadId}/${req.file.filename}`;
+        if (isVercel) {
+            // ── Vercel Blob upload ────────────────────────────────────────────
+            const { put } = await import('@vercel/blob');
+            const blobPath = `uploads/${req.params.leadId}/${Date.now()}-${req.file.originalname}`;
+            const blob = await put(blobPath, req.file.buffer, {
+                access: 'public',
+                contentType: req.file.mimetype,
+            });
+            fileUrl = blob.url; // persistent public URL, e.g. https://xxx.public.blob.vercel-storage.com/...
+        } else {
+            // ── Local disk ───────────────────────────────────────────────────
+            fileUrl = `/uploads/${req.params.leadId}/${req.file.filename}`;
+        }
 
         const [newDoc] = await db.insert(documents).values({
             leadId: req.params.leadId,
@@ -128,10 +148,20 @@ router.delete('/documents/:id', authenticateToken, async (req, res) => {
 
         if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-        // Delete file from disk
-        const filePath = path.resolve(__dirname, '../../../..', doc.fileUrl.replace(/^\//, ''));
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        if (isVercel && doc.fileUrl.startsWith('http')) {
+            // Delete from Vercel Blob
+            try {
+                const { del } = await import('@vercel/blob');
+                await del(doc.fileUrl);
+            } catch (e) {
+                logger.warn(`[documents] Could not delete blob: ${e.message}`);
+            }
+        } else {
+            // Delete local file
+            const filePath = path.resolve(__dirname, '../../../..', doc.fileUrl.replace(/^\//, ''));
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
         }
 
         await db.delete(documents).where(eq(documents.id, req.params.id));
@@ -149,6 +179,11 @@ router.get('/documents/:id/download', authenticateToken, async (req, res) => {
             .where(eq(documents.id, req.params.id)).limit(1);
 
         if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+        if (isVercel && doc.fileUrl.startsWith('http')) {
+            // Redirect to Vercel Blob URL for download
+            return res.redirect(doc.fileUrl);
+        }
 
         const filePath = path.resolve(__dirname, '../../../..', doc.fileUrl.replace(/^\//, ''));
         if (!fs.existsSync(filePath)) {

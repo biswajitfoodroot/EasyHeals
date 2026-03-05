@@ -1251,27 +1251,34 @@ router.post('/:id/send-visa-email', authenticateToken, requireAdvisor, async (re
 
         // Add extra attachments if requested
         if (attachmentIds && Array.isArray(attachmentIds) && attachmentIds.length > 0) {
-            logger.info(`[API] visaUploadDir: ${visaUploadDir}`);
-            logger.info(`[API] Fetching ${attachmentIds.length} extra attachments from DB: ${JSON.stringify(attachmentIds)}`);
             const extraDocs = await db.select().from(documents).where(inArray(documents.id, attachmentIds));
-            logger.info(`[API] Found ${extraDocs.length} docs in DB`);
             for (const docInfo of extraDocs) {
-                // Strip any leading /uploads/ or uploads/ prefix robustly
-                const relativePath = docInfo.fileUrl.replace(/^\/?(uploads\/)?/, '');
-                const filePath = path.join(visaUploadDir, relativePath);
-                logger.info(`[API] Checking attachment: "${docInfo.fileName}" | fileUrl="${docInfo.fileUrl}" | filePath="${filePath}"`);
-
-                if (fs.existsSync(filePath)) {
-                    logger.info(`[API] ✅ Attachment FOUND on disk: ${docInfo.fileName}`);
-                    finalAttachments.push({
-                        filename: docInfo.fileName,
-                        content: fs.readFileSync(filePath)
-                    });
-                } else {
-                    logger.error(`[API] ❌ Attachment NOT FOUND on disk: "${docInfo.fileName}" at "${filePath}"`);
+                try {
+                    let fileContent;
+                    if (docInfo.fileUrl.startsWith('http')) {
+                        // Vercel Blob URL: fetch content via HTTP (persistent, shared across instances)
+                        logger.info('[API] Fetching blob attachment: ' + docInfo.fileName);
+                        const blobRes = await fetch(docInfo.fileUrl);
+                        if (!blobRes.ok) throw new Error('Blob fetch HTTP ' + blobRes.status);
+                        fileContent = Buffer.from(await blobRes.arrayBuffer());
+                    } else {
+                        // Local disk path
+                        const rel = docInfo.fileUrl.replace(/^\/?(uploads\/)?/, '');
+                        const fp = path.join(visaUploadDir, rel);
+                        logger.info('[API] Reading local attachment: ' + fp);
+                        if (!fs.existsSync(fp)) {
+                            logger.error('[API] File not found on disk: ' + fp);
+                            continue;
+                        }
+                        fileContent = fs.readFileSync(fp);
+                    }
+                    finalAttachments.push({ filename: docInfo.fileName, content: fileContent });
+                    logger.info('[API] Attachment added: ' + docInfo.fileName);
+                } catch (err) {
+                    logger.error('[API] Failed to load attachment ' + docInfo.fileName + ': ' + err.message);
                 }
             }
-            logger.info(`[API] Total attachments to send: ${finalAttachments.length} (including VIL PDF)`);
+            logger.info('[API] Total attachments being sent: ' + finalAttachments.length);
         }
 
         const toAddress = (recipientEmails && Array.isArray(recipientEmails) && recipientEmails.length > 0)
